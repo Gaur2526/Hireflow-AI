@@ -196,6 +196,37 @@ async def test_a_call_nobody_has_heard_from_in_hours_is_dropped(
     assert await sync_stale_calls(db) == 0
 
 
+async def test_the_poller_retries_a_completed_call_with_an_empty_result(
+    db, factory, hunar_key, respx_mock
+) -> None:
+    """Result payloads can arrive after COMPLETED, including on Postgres JSON."""
+    job = factory.job()
+    call = factory.call(
+        factory.campaign(job),
+        factory.candidate(job),
+        status=CallStatus.COMPLETED,
+        hunar_call_id="hunar_call_empty_result",
+        result={},
+    )
+    db.commit()
+
+    respx_mock.get(
+        "https://api.voice.hunar.ai/external/v1/calls/hunar_call_empty_result/"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "hunar_call_empty_result",
+                "status": "COMPLETED",
+                "result": {"consent_to_continue": True},
+            },
+        )
+    )
+
+    assert await sync_stale_calls(db) == 1
+    assert db.get(Call, call.id).result == {"consent_to_continue": True}
+
+
 # ---------------------------------------------------------------------------
 # Dashboard aggregates
 # ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -537,9 +537,13 @@ async def sync_stale_calls(db: Session, *, client: HunarClient | None = None) ->
     if not client.configured:
         return 0
 
+    active = {status.value for status in ACTIVE_CALL_STATUSES}
     cutoff = _now() - timedelta(minutes=settings.call_poll_max_age_minutes)
     # Result extraction lands *after* a call reaches COMPLETED, so a completed
-    # call with an empty result is still worth re-polling.
+    # call with an empty result is still worth re-polling. Do not compare the
+    # JSON column to `{}` in SQL: PostgreSQL's `json` type deliberately has no
+    # equality operator (unlike SQLite's JSON storage). Select recent completed
+    # rows, then perform that small portable check in Python below.
     stmt = (
         select(Call)
         .where(Call.hunar_call_id.is_not(None))
@@ -549,18 +553,20 @@ async def sync_stale_calls(db: Session, *, client: HunarClient | None = None) ->
         .where(or_(Call.last_synced_at >= cutoff, Call.created_at >= cutoff))
         .where(
             or_(
-                Call.status.in_([s.value for s in ACTIVE_CALL_STATUSES]),
-                and_(
-                    Call.status == CallStatus.COMPLETED,
-                    or_(Call.result.is_(None), Call.result == {}),
-                ),
+                    Call.status.in_(active),
+                Call.status == CallStatus.COMPLETED,
             )
         )
         # Least recently synced first, so a bounded batch still rotates fairly.
         .order_by(Call.last_synced_at.asc(), Call.created_at.asc())
         .limit(100)
     )
-    calls = list(db.scalars(stmt))
+    calls = [
+        call
+        for call in db.scalars(stmt)
+        if call.status in active
+        or (call.status == CallStatus.COMPLETED and not call.result)
+    ]
     if not calls:
         return 0
 
