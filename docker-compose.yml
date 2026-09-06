@@ -1,0 +1,79 @@
+# =============================================================================
+# One-command local development.
+#
+#   docker compose up --build              # backend :8000 + frontend :3000
+#   docker compose --profile postgres up    # ...plus Postgres on :5432
+#   docker compose down -v                  # stop and drop volumes
+#
+# Secrets come from backend/.env (git-ignored; copy .env.example to start).
+# Nothing sensitive is written in this file.
+# =============================================================================
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: hireflow-api:local
+    env_file:
+      # `required: false` so `docker compose up` works before you create .env.
+      - path: ./backend/.env
+        required: false
+    environment:
+      PORT: "8000"
+      ENVIRONMENT: local
+      LOG_LEVEL: INFO
+      # Browser origin of the frontend container.
+      CORS_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      # SQLite on a named volume so data survives `docker compose down`.
+      # For the postgres profile, override with (note the psycopg 3 driver):
+      #   DATABASE_URL: postgresql+psycopg://hireflow:hireflow@postgres:5432/hireflow
+      DATABASE_URL: "sqlite:////app/data/hireflow.db"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    # Dev server with hot reload - no image build needed for the frontend.
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000"
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume: keeps the container's Linux node_modules from being
+      # shadowed by the host's (possibly macOS/arm) install.
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Opt-in: `docker compose --profile postgres up`
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hireflow
+      POSTGRES_PASSWORD: hireflow      # local-only throwaway credential
+      POSTGRES_DB: hireflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hireflow -d hireflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  backend-data:
+  frontend-node-modules:
+  postgres-data:

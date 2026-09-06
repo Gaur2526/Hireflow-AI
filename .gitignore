@@ -1,0 +1,55 @@
+# --- secrets (never commit) --------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+*.egg-info/
+
+# --- data --------------------------------------------------------------------
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+*.sqlite
+
+# --- node / next -------------------------------------------------------------
+node_modules/
+.next/
+out/
+build/
+dist/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+
+# --- os / editors ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+.direnv/
+
+# --- logs --------------------------------------------------------------------
+*.log
+npm-debug.log*

@@ -1,0 +1,26 @@
+# --- Web framework -----------------------------------------------------------
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+python-multipart==0.0.20
+
+# --- Config / validation -----------------------------------------------------
+pydantic==2.11.9
+pydantic-settings==2.11.0
+email-validator==2.3.0
+
+# --- Persistence -------------------------------------------------------------
+SQLAlchemy==2.0.43
+alembic==1.16.5
+psycopg[binary]==3.2.10        # optional: only used when DATABASE_URL is postgres
+
+# --- HTTP client -------------------------------------------------------------
+httpx==0.28.1
+tenacity==9.1.2
+
+# --- LLM (optional; app degrades to deterministic heuristics without a key) ---
+anthropic==1.4.0
+
+# --- Utils -------------------------------------------------------------------
+phonenumbers==9.0.14
+python-dotenv==1.1.1
+structlog==25.4.0

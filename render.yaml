@@ -1,0 +1,163 @@
+# =============================================================================
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# =============================================================================
+# Deploy: push this file to your repo, then Render Dashboard -> New -> Blueprint
+# -> pick the repo. The Render CLI can create individual services but CANNOT
+# apply a Blueprint, so this first step is a one-time click in the dashboard.
+#
+# Free plan reality check (September 2026):
+#   * NO persistent disk           -> SQLite is wiped on every deploy/restart.
+#   * spins down after ~15 min idle -> first request afterwards takes ~1 min.
+#   * 750 instance-hours / workspace / month, no credit card required.
+# For anything you actually demo, point DATABASE_URL at Neon (see the bottom of
+# this file) rather than leaving the SQLite default.
+#
+# Every value below mirrors backend/app/core/config.py.
+#   sync: false  -> secret; Render prompts for it and never stores it in git.
+# =============================================================================
+
+services:
+  - type: web
+    name: hireflow-ai-api
+    runtime: docker              # `env:` is deprecated - use `runtime:`
+    plan: free
+    region: oregon
+    branch: main
+    autoDeploy: true
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    healthCheckPath: /healthz
+
+    envVars:
+      # --- app ---------------------------------------------------------------
+      - key: APP_NAME
+        value: HireFlow AI
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: API_PREFIX
+        value: /api
+
+      # Comma-separated origins, or "*". Replace with your Vercel domain once
+      # the frontend is deployed (e.g. https://hireflow-ai.vercel.app).
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Public HTTPS URL of THIS service, used for Hunar webhooks. Render only
+      # knows it after the first deploy, so set it in the dashboard afterwards
+      # to https://<service-name>.onrender.com and redeploy. Leave empty and the
+      # app falls back to polling.
+      - key: PUBLIC_BASE_URL
+        sync: false
+
+      # --- persistence -------------------------------------------------------
+      # WARNING: the free plan has no disk. This SQLite file lives in the
+      # container and disappears on restart/redeploy/scale-to-zero recovery.
+      # Swap it for the Neon/Postgres block at the bottom of this file.
+      - key: DATABASE_URL
+        value: sqlite:///./data/hireflow.db
+
+      # --- Hunar Voice AI ----------------------------------------------------
+      - key: HUNAR_API_KEY
+        sync: false
+      - key: HUNAR_WEBHOOK_SECRET
+        sync: false
+      - key: HUNAR_BASE_URL
+        value: https://api.voice.hunar.ai
+      - key: HUNAR_API_PREFIX
+        value: /external/v1
+      - key: HUNAR_TIMEOUT_SECONDS
+        value: "30"
+
+      # --- calling defaults --------------------------------------------------
+      - key: DEFAULT_COUNTRY_CODE
+        value: IN
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: DEFAULT_VOICE_PERSONA
+        value: NEHA
+      - key: DEFAULT_LANGUAGE
+        value: ENGLISH
+
+      # --- people search -----------------------------------------------------
+      # mock | pdl | apollo | proxycurl | coresignal
+      - key: PEOPLE_PROVIDER
+        value: mock
+      - key: PDL_API_KEY
+        sync: false
+      - key: APOLLO_API_KEY
+        sync: false
+      - key: PROXYCURL_API_KEY
+        sync: false
+      - key: CORESIGNAL_API_KEY
+        sync: false
+
+      # Every outbound call goes to this number instead of the candidate's.
+      # Set it (in E.164, e.g. +919876543210) for demos so nobody is cold-called.
+      - key: DEMO_CALL_REDIRECT_NUMBER
+        sync: false
+
+      # --- LLM (optional) ----------------------------------------------------
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: claude-opus-5
+      - key: LLM_MAX_TOKENS
+        value: "4096"
+
+      # --- background reconciliation ----------------------------------------
+      - key: ENABLE_CALL_POLLER
+        value: "true"
+      - key: CALL_POLL_INTERVAL_SECONDS
+        value: "15"
+      - key: CALL_POLL_MAX_AGE_MINUTES
+        value: "180"
+
+      # --- limits ------------------------------------------------------------
+      - key: MAX_CANDIDATES_PER_SEARCH
+        value: "25"
+
+      # --- static frontend ---------------------------------------------------
+      # Keep false here: this service builds backend/Dockerfile, which contains
+      # no frontend. Set true only for the root single-container Dockerfile.
+      - key: SERVE_FRONTEND
+        value: "false"
+      - key: FRONTEND_DIST_DIR
+        value: static
+
+# =============================================================================
+# Postgres - pick ONE of the two options below and delete the SQLite
+# DATABASE_URL entry above (an env var may only be declared once).
+# =============================================================================
+#
+# OPTION A (recommended): Neon - https://neon.tech
+#   Free tier: 0.5 GB, scales to zero, and is NOT paused for inactivity.
+#   1. Create a project, copy the pooled connection string.
+#   2. Prefix it for SQLAlchemy + psycopg 3 and keep TLS on:
+#        postgresql+psycopg://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+#   3. Replace the DATABASE_URL entry above with:
+#
+#      - key: DATABASE_URL
+#        sync: false        # paste the Neon URL in the Render dashboard
+#
+# OPTION B: Render's own Postgres. Free instances EXPIRE 30 DAYS after creation
+#   and are then deleted, so treat it as scratch space only. Uncomment both the
+#   `databases:` block and the fromDatabase env var, and delete the literal
+#   DATABASE_URL above.
+#
+# databases:
+#   - name: hireflow-db
+#     plan: free
+#     databaseName: hireflow
+#     user: hireflow
+#
+#     # then, inside services[0].envVars:
+#     # - key: DATABASE_URL
+#     #   fromDatabase:
+#     #     name: hireflow-db
+#     #     property: connectionString
+#     #
+#     # Render hands you a `postgresql://...` URL. SQLAlchemy needs the psycopg 3
+#     # driver spelled out, so either normalise it in code or set DATABASE_URL
+#     # manually as postgresql+psycopg://... in the dashboard.

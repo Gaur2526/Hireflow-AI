@@ -1,0 +1,43 @@
+# Build context for backend/Dockerfile. Keep it tiny: everything here is either
+# a secret, a local-only artifact, or something the image rebuilds itself.
+
+# --- secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- local python ------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- local data (SQLite lives on a volume / managed Postgres in prod) ---------
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# --- not needed at runtime ---------------------------------------------------
+tests/
+requirements-dev.txt
+README.md
+*.md
+Dockerfile
+.dockerignore
+
+# --- os / editors ------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log

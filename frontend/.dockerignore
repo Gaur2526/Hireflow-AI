@@ -1,0 +1,29 @@
+# Build context for the frontend stage of the root Dockerfile.
+
+# --- secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- build artifacts (regenerated inside the image) --------------------------
+node_modules/
+.next/
+out/
+build/
+dist/
+.vercel/
+*.tsbuildinfo
+
+# --- not needed at build time ------------------------------------------------
+.git/
+*.md
+Dockerfile
+.dockerignore
+
+# --- os / editors ------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log
+npm-debug.log*

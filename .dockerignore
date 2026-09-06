@@ -1,0 +1,49 @@
+# Build context for the ROOT Dockerfile (the single-container variant).
+# backend/.dockerignore and frontend/.dockerignore only apply when the build
+# context is that subdirectory, so the root build needs its own copy.
+
+# --- secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env.local
+*.pem
+*.key
+
+# --- vcs / docs / tooling ----------------------------------------------------
+.git/
+.github/
+docs/
+scripts/
+*.md
+
+# --- python ------------------------------------------------------------------
+backend/.venv/
+backend/venv/
+backend/data/
+backend/tests/
+backend/requirements-dev.txt
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# --- node / next -------------------------------------------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+*.tsbuildinfo
+
+# --- os / editors ------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.log
