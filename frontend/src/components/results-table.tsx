@@ -49,11 +49,11 @@ export function ResultsTable({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-2xl border border-border/80 bg-card shadow-[0_8px_24px_oklch(0.2_0.04_258/0.04)]">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 min-w-[200px] bg-[var(--background)]">
+              <TableHead className="sticky left-0 z-10 min-w-[230px] bg-muted">
                 Candidate
               </TableHead>
               <TableHead className="w-32">Call</TableHead>
@@ -75,11 +75,13 @@ export function ResultsTable({
               const pending = !answered && !isTerminal(call.status);
               return (
                 <TableRow key={call.id}>
-                  <TableCell className="sticky left-0 z-10 bg-[var(--background)]">
+                  <TableCell className="sticky left-0 z-10 bg-card">
                     <div className="flex items-center gap-2">
-                      <FitScore score={call.candidate_fit_score} />
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 text-xs font-bold text-primary">
+                        {call.candidate_name.slice(0, 1).toUpperCase()}
+                      </span>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1 truncate text-sm font-medium">
+                        <div className="flex items-center gap-1 truncate text-sm font-semibold">
                           {call.candidate_name}
                           {call.candidate_linkedin ? (
                             <a
@@ -97,6 +99,7 @@ export function ResultsTable({
                           {call.candidate_title ?? "—"}
                         </div>
                       </div>
+                      <FitScore score={call.candidate_fit_score} className="ml-auto" />
                     </div>
                   </TableCell>
 

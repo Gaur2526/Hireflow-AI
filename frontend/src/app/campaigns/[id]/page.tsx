@@ -3,7 +3,18 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
-import { Download, Loader2, PhoneOutgoing, RefreshCw } from "lucide-react";
+import {
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  Download,
+  Heart,
+  Loader2,
+  PhoneOutgoing,
+  PhoneMissed,
+  RefreshCw,
+  TimerReset,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -24,7 +35,6 @@ import {
   ErrorNote,
   PageHeader,
   SkeletonRows,
-  StatCard,
   WarningList,
 } from "@/components/primitives";
 
@@ -165,52 +175,28 @@ export default function CampaignPage() {
           <>
             <WarningList warnings={data.warnings} />
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-              <StatCard label="Calls" value={data.stats.total} />
-              <StatCard
-                label="Completed"
-                value={data.stats.completed}
-                tone={data.stats.completed ? "positive" : undefined}
-              />
-              <StatCard
-                label="In flight"
-                value={data.stats.in_flight + data.stats.pending}
-              />
-              <StatCard
-                label="Not connected"
-                value={data.stats.not_connected + data.stats.failed}
-                tone={
-                  data.stats.not_connected + data.stats.failed ? "warning" : undefined
-                }
-              />
-              <StatCard
-                label="Interested"
-                value={data.stats.interested}
-                tone={data.stats.interested ? "positive" : undefined}
-                hint={`${data.stats.consented} consented`}
-              />
-              <StatCard
-                label="Talk time"
-                value={`${data.stats.total_talk_minutes}m`}
-                hint={
-                  data.stats.avg_duration_seconds
-                    ? `avg ${formatDuration(data.stats.avg_duration_seconds)}`
-                    : undefined
-                }
-              />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <CampaignMetric icon={PhoneOutgoing} label="Calls" value={data.stats.total} tone="blue" />
+              <CampaignMetric icon={CheckCircle2} label="Completed" value={data.stats.completed} tone="green" />
+              <CampaignMetric icon={TimerReset} label="In flight" value={data.stats.in_flight + data.stats.pending} tone="violet" />
+              <CampaignMetric icon={PhoneMissed} label="Not connected" value={data.stats.not_connected + data.stats.failed} tone="amber" />
+              <CampaignMetric icon={Heart} label="Interested" value={data.stats.interested} hint={`${data.stats.consented} consented`} tone="rose" />
+              <CampaignMetric icon={Clock3} label="Talk time" value={`${data.stats.total_talk_minutes}m`} hint={data.stats.avg_duration_seconds ? `avg ${formatDuration(data.stats.avg_duration_seconds)}` : undefined} tone="cyan" />
             </div>
 
-            <Card className="gap-3 py-4">
-              <CardContent className="space-y-2 px-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">
-                    {done} of {data.stats.total} calls finished
-                  </span>
-                  <span className="text-muted-foreground text-xs">
-                    updated {formatRelative(data.campaign.updated_at)}
+            <Card className="relative gap-3 overflow-hidden py-5">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-cyan-400 to-emerald-400" />
+              <CardContent className="space-y-3 px-5">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <div>
+                    <div className="eyebrow text-primary">Campaign progress</div>
+                    <span className="mt-1 block text-base font-semibold">{done} of {data.stats.total} calls finished</span>
+                  </div>
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                    Updated {formatRelative(data.campaign.updated_at)}
                   </span>
                 </div>
-                <Progress value={progress} />
+                <Progress value={progress} className="h-2" />
                 {data.stats.do_not_contact ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400">
                     {data.stats.do_not_contact} candidate
@@ -222,12 +208,16 @@ export default function CampaignPage() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Screening answers</CardTitle>
+              <CardHeader className="border-b border-border/70 pb-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20"><BarChart3 className="size-4" /></span>
+                  <div>
+                    <div className="eyebrow text-primary">Screening intelligence</div>
+                    <CardTitle className="mt-0.5 text-lg">Candidate answers</CardTitle>
+                  </div>
+                </div>
                 <p className="text-muted-foreground text-sm">
-                  One column per field in the agent&apos;s{" "}
-                  <code className="font-mono text-xs">result_schema</code> — generated from
-                  this job&apos;s description.
+                  Structured responses extracted from the voice conversation.
                 </p>
               </CardHeader>
               <CardContent>
@@ -245,5 +235,41 @@ export default function CampaignPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function CampaignMetric({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  tone: "blue" | "green" | "violet" | "amber" | "rose" | "cyan";
+}) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-600",
+    green: "bg-emerald-50 text-emerald-600",
+    violet: "bg-violet-50 text-violet-600",
+    amber: "bg-amber-50 text-amber-600",
+    rose: "bg-rose-50 text-rose-600",
+    cyan: "bg-cyan-50 text-cyan-600",
+  };
+
+  return (
+    <Card className="gap-0 py-4">
+      <CardContent className="px-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</span>
+          <span className={`flex size-8 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="size-4" /></span>
+        </div>
+        <div className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">{value}</div>
+        <div className="mt-1 h-4 text-xs text-muted-foreground">{hint}</div>
+      </CardContent>
+    </Card>
   );
 }

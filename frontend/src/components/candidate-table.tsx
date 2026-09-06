@@ -49,7 +49,7 @@ export function CandidateTable({
     callable.length > 0 && callable.every((c) => selected.has(c.id));
 
   return (
-    <div className="rounded-lg border">
+    <div className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_8px_24px_oklch(0.2_0.04_258/0.04)]">
       <Table>
         <TableHeader>
           <TableRow>
