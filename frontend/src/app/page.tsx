@@ -3,9 +3,13 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUpRight,
+  AlertTriangle,
   Briefcase,
   Check,
+  CheckCircle2,
   Database,
+  Heart,
   PhoneCall,
   Play,
   Plus,
@@ -13,21 +17,24 @@ import {
   Waves,
 } from "lucide-react";
 
-import { getOverview } from "@/lib/api";
-import { formatDuration, formatRelative } from "@/lib/format";
+import { getConfig, getOverview } from "@/lib/api";
+import { formatRelative } from "@/lib/format";
 import { useAsync } from "@/hooks/use-async";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import type { DashboardOverview } from "@/lib/types";
 import {
   EmptyState,
   ErrorNote,
   PageHeader,
   SkeletonRows,
-  StatCard,
 } from "@/components/primitives";
 
 export default function DashboardPage() {
   const { data, error, loading } = useAsync(getOverview);
+  const config = useAsync(getConfig);
 
   return (
     <>
@@ -51,28 +58,31 @@ export default function DashboardPage() {
           <>
             {data.totals.jobs === 0 ? <DemoJourney /> : null}
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <StatCard label="Jobs" value={data.totals.jobs} />
-              <StatCard
-                label="Sourced"
-                value={data.totals.candidates}
-                hint={`${data.totals.shortlisted} shortlisted`}
-              />
-              <StatCard label="Campaigns" value={data.totals.campaigns} />
-              <StatCard
-                label="Calls placed"
-                value={data.totals.calls}
-                hint={`${data.call_stats.completed} completed`}
-              />
-              <StatCard
-                label="Interested"
-                value={data.call_stats.interested}
-                tone={data.call_stats.interested ? "positive" : undefined}
-                hint={
-                  data.call_stats.avg_duration_seconds
-                    ? `avg ${formatDuration(data.call_stats.avg_duration_seconds)} on call`
-                    : undefined
-                }
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.8fr)]">
+              <Card className="workspace-card overflow-hidden">
+                <CardHeader className="border-b border-border/70 bg-gradient-to-r from-blue-50/70 to-cyan-50/60 dark:from-blue-950/25 dark:to-cyan-950/10">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="eyebrow text-primary">Hiring pipeline</div>
+                      <CardTitle className="mt-1 text-lg">Your funnel at a glance</CardTitle>
+                    </div>
+                    <Badge variant="outline" className="rounded-full bg-background/70">
+                      {data.totals.jobs} {data.totals.jobs === 1 ? "job" : "jobs"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-5 xl:gap-2">
+                  <FunnelStage icon={Users} label="Sourced" value={data.totals.candidates} previous={null} tint="blue" />
+                  <FunnelStage icon={Check} label="Shortlisted" value={data.totals.shortlisted} previous={data.totals.candidates} tint="cyan" />
+                  <FunnelStage icon={PhoneCall} label="Called" value={data.totals.calls} previous={data.totals.shortlisted} tint="violet" />
+                  <FunnelStage icon={CheckCircle2} label="Completed" value={data.call_stats.completed} previous={data.totals.calls} tint="emerald" />
+                  <FunnelStage icon={Heart} label="Interested" value={data.call_stats.interested} previous={data.call_stats.completed} tint="rose" />
+                </CardContent>
+              </Card>
+
+              <NeedsAttention
+                overview={data}
+                hunarConfigured={config.data?.hunar.configured ?? null}
               />
             </div>
 
@@ -163,6 +173,103 @@ export default function DashboardPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function FunnelStage({
+  icon: Icon,
+  label,
+  value,
+  previous,
+  tint,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  previous: number | null;
+  tint: "blue" | "cyan" | "violet" | "emerald" | "rose";
+}) {
+  const palette = {
+    blue: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
+    violet: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    rose: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  };
+  const conversion = previous === null ? null : previous ? Math.round((value / previous) * 100) : 0;
+  return (
+    <div className="rounded-xl border border-border/70 bg-background/80 p-3 sm:p-3.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`flex size-8 items-center justify-center rounded-lg ${palette[tint]}`}><Icon className="size-4" /></span>
+        <span className="text-muted-foreground text-[11px] tabular-nums">
+          {conversion === null ? "Starting pool" : `${conversion}% conversion`}
+        </span>
+      </div>
+      <div className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{value.toLocaleString()}</div>
+      <div className="text-muted-foreground mt-0.5 text-xs font-medium">{label}</div>
+      {conversion !== null ? <Progress value={Math.min(conversion, 100)} className="mt-3 h-1" /> : <div className="mt-3 h-1 rounded-full bg-blue-200 dark:bg-blue-900" />}
+    </div>
+  );
+}
+
+function NeedsAttention({
+  overview,
+  hunarConfigured,
+}: {
+  overview: DashboardOverview;
+  hunarConfigured: boolean | null;
+}) {
+  const items: Array<{ title: string; detail: string; href: string; tone?: "warning" | "info" }> = [];
+  if (hunarConfigured === false) {
+    items.push({ title: "Voice screening isn't connected", detail: "Add a Hunar API key before placing calls.", href: "/settings", tone: "warning" });
+  }
+  if (overview.totals.candidates && !overview.totals.shortlisted) {
+    items.push({ title: "Shortlist candidates", detail: `${overview.totals.candidates} profiles are waiting for review.`, href: "/jobs" });
+  }
+  if (overview.call_stats.failed) {
+    const failedCampaign = overview.recent_campaigns.find((campaign) => campaign.stats.failed);
+    items.push({ title: `${overview.call_stats.failed} failed calls`, detail: "Review the call details and retry if appropriate.", href: failedCampaign ? `/campaigns/${failedCampaign.id}` : "/campaigns", tone: "warning" });
+  }
+  if (overview.call_stats.do_not_contact) {
+    items.push({ title: "Contact requests need review", detail: `${overview.call_stats.do_not_contact} candidate(s) asked not to be contacted.`, href: "/campaigns", tone: "warning" });
+  }
+
+  return (
+    <Card className="workspace-card h-full">
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <div className="eyebrow text-muted-foreground">Operations</div>
+          <CardTitle className="mt-1 text-lg">Needs attention</CardTitle>
+        </div>
+        <Badge variant={items.length ? "destructive" : "secondary"}>{items.length || "All clear"}</Badge>
+      </CardHeader>
+      <CardContent>
+        {items.length ? (
+          <ul className="divide-y">
+            {items.slice(0, 4).map((item) => (
+              <li key={item.title}>
+                <Link href={item.href} className="group flex items-start gap-3 py-3">
+                  <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${item.tone === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"}`}>
+                    {item.tone === "warning" ? <AlertTriangle className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium group-hover:text-primary">{item.title}</span>
+                    <span className="text-muted-foreground mt-0.5 block text-xs leading-5">{item.detail}</span>
+                  </span>
+                  <ArrowRight className="text-muted-foreground mt-1 size-3.5 shrink-0 opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex min-h-36 flex-col items-center justify-center text-center">
+            <span className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><CheckCircle2 className="size-5" /></span>
+            <div className="mt-3 text-sm font-medium">Everything looks good</div>
+            <p className="text-muted-foreground mt-1 max-w-56 text-xs">No failed calls or follow-ups need your attention.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

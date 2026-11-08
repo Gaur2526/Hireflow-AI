@@ -131,12 +131,19 @@ class CallRead(ORMModel):
     updated_at: UTCDatetime | None
 
 
+class TranscriptLine(BaseModel):
+    speaker: str = "Speaker"
+    text: str
+    timestamp: str | None = None
+
+
 class CallWithCandidate(CallRead):
     candidate_name: str = ""
     candidate_title: str | None = None
     candidate_company: str | None = None
     candidate_linkedin: str | None = None
     candidate_fit_score: float = 0.0
+    transcript: list[TranscriptLine] = Field(default_factory=list)
 
 
 class CampaignRead(ORMModel):
@@ -181,6 +188,14 @@ class CampaignDetail(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class CampaignCallPreview(BaseModel):
+    call_id: str
+    candidate_name: str
+    status: str
+    duration_seconds: float | None = None
+    outcome: str
+
+
 class CampaignSummary(ORMModel):
     id: str
     job_id: str
@@ -188,8 +203,10 @@ class CampaignSummary(ORMModel):
     status: str
     hunar_agent_id: str | None
     created_at: UTCDatetime | None
+    updated_at: UTCDatetime | None
     job_title: str = ""
     stats: CampaignStats = Field(default_factory=CampaignStats)
+    call_previews: list[CampaignCallPreview] = Field(default_factory=list)
 
 
 class LaunchResponse(BaseModel):

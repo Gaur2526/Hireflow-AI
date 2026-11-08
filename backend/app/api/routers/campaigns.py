@@ -21,10 +21,12 @@ from app.models import Campaign, Candidate, CandidateStatus, Job
 from app.schemas.campaign import (
     CallWithCandidate,
     CampaignCreate,
+    CampaignCallPreview,
     CampaignDetail,
     CampaignRead,
     CampaignSummary,
     LaunchResponse,
+    TranscriptLine,
 )
 from app.schemas.common import Ack
 from app.services import campaigns as service
@@ -137,13 +139,64 @@ def list_campaigns(
     return [
         CampaignSummary(
             **CampaignSummary.model_validate(c).model_dump(
-                exclude={"job_title", "stats"}
+                exclude={"job_title", "stats", "call_previews"}
             ),
             job_title=titles.get(c.job_id, ""),
             stats=service.compute_stats(list(c.calls)),
+            call_previews=[
+                CampaignCallPreview(
+                    call_id=call.id,
+                    candidate_name=call.candidate.full_name
+                    if call.candidate
+                    else "Candidate",
+                    status=call.status,
+                    duration_seconds=call.duration_seconds,
+                    outcome=_call_outcome(call),
+                )
+                for call in sorted(
+                    c.calls, key=lambda item: item.created_at, reverse=True
+                )[:3]
+            ],
         )
         for c in campaigns
     ]
+
+
+def _call_outcome(call: Any) -> str:
+    status = str(call.status)
+    answered_by = str(call.answered_by or "").upper()
+    if answered_by in {"VOICEMAIL", "MACHINE"}:
+        return "Voicemail"
+    if status == "NOT_CONNECTED":
+        return "No answer"
+    if status == "FAILED":
+        return "Failed"
+    if status == "CANCELLED":
+        return "Cancelled"
+    if status not in {"COMPLETED"}:
+        return (
+            "Live" if status in {"INITIATED", "RINGING", "IN_PROGRESS"} else "Pending"
+        )
+
+    result = call.result or {}
+    for key in ("interested", "is_interested", "open_to_opportunity"):
+        if key not in result:
+            continue
+        value = result[key]
+        if isinstance(value, bool):
+            return "Interested" if value else "Not interested"
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"yes", "true", "interested", "high"}:
+                return "Interested"
+            if normalized in {"no", "false", "not interested", "low"}:
+                return "Not interested"
+    level = str(result.get("interest_level") or "").strip().lower()
+    if level in {"high", "interested"}:
+        return "Interested"
+    if level in {"low", "not interested"}:
+        return "Not interested"
+    return "Completed"
 
 
 @router.get("/campaigns/{campaign_id}", response_model=CampaignDetail)
@@ -184,6 +237,7 @@ def _calls_with_candidates(campaign: Campaign) -> list[CallWithCandidate]:
                 "candidate_company",
                 "candidate_linkedin",
                 "candidate_fit_score",
+                "transcript",
             }
         )
         candidate = call.candidate
@@ -195,9 +249,98 @@ def _calls_with_candidates(campaign: Campaign) -> list[CallWithCandidate]:
                 candidate_company=candidate.company if candidate else None,
                 candidate_linkedin=candidate.linkedin_url if candidate else None,
                 candidate_fit_score=candidate.fit_score if candidate else 0.0,
+                transcript=_transcript_from_raw(call.raw or {}),
             )
         )
     return rows
+
+
+def _transcript_from_raw(raw: dict[str, Any]) -> list[TranscriptLine]:
+    """Return transcript snippets when Hunar includes them in its call payload."""
+    source: Any = next(
+        (
+            raw.get(key)
+            for key in ("transcript", "transcript_segments", "messages", "conversation")
+            if raw.get(key)
+        ),
+        None,
+    )
+    if isinstance(source, str):
+        lines: list[TranscriptLine] = []
+        for row in source.splitlines():
+            text = row.strip()
+            if not text:
+                continue
+            timestamp = None
+            if text.startswith("[") and "]" in text:
+                timestamp, text = text[1:].split("]", 1)
+                text = text.strip()
+            speaker = "Speaker"
+            if ":" in text:
+                maybe_speaker, remainder = text.split(":", 1)
+                if maybe_speaker.strip().lower() in {
+                    "agent",
+                    "assistant",
+                    "candidate",
+                    "user",
+                    "recruiter",
+                }:
+                    speaker, text = maybe_speaker.strip().title(), remainder.strip()
+            if text:
+                lines.append(
+                    TranscriptLine(speaker=speaker, text=text, timestamp=timestamp)
+                )
+        return lines
+    if isinstance(source, dict):
+        source = source.get("segments") or source.get("messages") or source.get("items")
+    if not isinstance(source, list):
+        return []
+
+    lines: list[TranscriptLine] = []
+    for item in source:
+        if isinstance(item, str):
+            text = item.strip()
+            speaker = "Speaker"
+            if ":" in text:
+                maybe_speaker, remainder = text.split(":", 1)
+                if maybe_speaker.strip().lower() in {
+                    "agent",
+                    "assistant",
+                    "candidate",
+                    "user",
+                    "recruiter",
+                }:
+                    speaker, text = maybe_speaker.strip(), remainder.strip()
+            if text:
+                lines.append(TranscriptLine(speaker=speaker, text=text))
+            continue
+        if not isinstance(item, dict):
+            continue
+        text = (
+            item.get("text")
+            or item.get("content")
+            or item.get("message")
+            or item.get("transcript")
+        )
+        if not isinstance(text, str) or not text.strip():
+            continue
+        speaker = (
+            item.get("speaker")
+            or item.get("role")
+            or item.get("participant")
+            or "Speaker"
+        )
+        timestamp = item.get("timestamp") or item.get("start_time") or item.get("time")
+        if timestamp is None and isinstance(item.get("offset_seconds"), (int, float)):
+            timestamp = str(item["offset_seconds"])
+        lines.append(
+            TranscriptLine(
+                speaker=str(speaker).replace("_", " ").title(),
+                text=text.strip(),
+                timestamp=str(timestamp) if timestamp is not None else None,
+            )
+        )
+    return lines
 
 
 @router.post("/campaigns/{campaign_id}/sync", response_model=CampaignDetail)

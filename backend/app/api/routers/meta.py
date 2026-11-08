@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -99,12 +99,13 @@ def _mask_redirect(number: str) -> str | None:
 
 
 @router.get("/hunar/ping")
-async def hunar_ping() -> dict[str, Any]:
+async def hunar_ping(force: bool = Query(default=False)) -> dict[str, Any]:
     """Shared authenticated Hunar health check, cached for one minute."""
     global _hunar_health_cache
     now = time.monotonic()
     if (
-        _hunar_health_cache is not None
+        not force
+        and _hunar_health_cache is not None
         and now - _hunar_health_cache[0] < _HUNAR_HEALTH_TTL_SECONDS
     ):
         return dict(_hunar_health_cache[1])

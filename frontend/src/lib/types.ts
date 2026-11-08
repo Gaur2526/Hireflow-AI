@@ -188,6 +188,7 @@ export interface Call {
   candidate_company: string | null;
   candidate_linkedin: string | null;
   candidate_fit_score: number;
+  transcript: Array<{ speaker: string; text: string; timestamp: string | null }>;
 }
 
 export interface CampaignStats {
@@ -245,8 +246,16 @@ export interface CampaignSummary {
   status: Campaign["status"];
   hunar_agent_id: string | null;
   created_at: string;
+  updated_at: string;
   job_title: string;
   stats: CampaignStats;
+  call_previews: Array<{
+    call_id: string;
+    candidate_name: string;
+    status: CallStatus;
+    duration_seconds: number | null;
+    outcome: string;
+  }>;
 }
 
 export interface LaunchResponse {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ExternalLink, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, XCircle } from "lucide-react";
 
 import { getConfig, listWebhookEvents, pingHunar } from "@/lib/api";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { useAsync } from "@/hooks/use-async";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -18,14 +19,30 @@ import {
 
 export default function SettingsPage() {
   const [now, setNow] = useState<number | null>(null);
+  const [testing, setTesting] = useState(false);
   const config = useAsync(getConfig);
-  const ping = useAsync(pingHunar);
+  const ping = useAsync(() => pingHunar());
   const events = useAsync(() => listWebhookEvents(15));
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNow(Date.now()), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function testHunarConnection() {
+    setTesting(true);
+    try {
+      ping.setData(await pingHunar(true));
+    } catch (cause) {
+      ping.setData({
+        status: "failing",
+        ok: false,
+        reason: cause instanceof Error ? cause.message : String(cause),
+      });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   return (
     <>
@@ -40,9 +57,20 @@ export default function SettingsPage() {
 
         {config.data ? (
           <>
+            <div className="col-span-full flex items-end justify-between gap-4 border-b border-border/70 pb-2">
+              <div>
+                <div className="eyebrow text-primary">Required</div>
+                <h2 className="mt-1 text-lg font-semibold">Live screening</h2>
+              </div>
+              <p className="text-muted-foreground hidden text-xs sm:block">Needed to place candidate calls</p>
+            </div>
             <Card>
-              <CardHeader>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-base">Voice AI — Hunar</CardTitle>
+                <Button variant="outline" size="sm" onClick={testHunarConnection} disabled={testing}>
+                  {testing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                  Test connection
+                </Button>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <Row
@@ -105,6 +133,14 @@ export default function SettingsPage() {
                 ) : null}
               </CardContent>
             </Card>
+
+            <div className="col-span-full mt-2 flex items-end justify-between gap-4 border-b border-border/70 pb-2">
+              <div>
+                <div className="eyebrow text-muted-foreground">Optional</div>
+                <h2 className="mt-1 text-lg font-semibold">Enrichment and diagnostics</h2>
+              </div>
+              <p className="text-muted-foreground hidden text-xs sm:block">These tools improve the workflow but aren&apos;t needed to explore it</p>
+            </div>
 
             <Card>
               <CardHeader>

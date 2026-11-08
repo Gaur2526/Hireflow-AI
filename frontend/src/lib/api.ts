@@ -119,7 +119,7 @@ export const getHealth = () =>
     webhooks_available: boolean;
   }>("/meta/health");
 
-export const pingHunar = () =>
+export const pingHunar = (force = false) =>
   request<{
     status: "ok" | "failing" | "not_configured" | "retired";
     ok: boolean;
@@ -127,7 +127,7 @@ export const pingHunar = () =>
     reason?: string;
     key?: string;
   }>(
-    "/meta/hunar/ping",
+    `/meta/hunar/ping${force ? "?force=true" : ""}`,
   );
 
 export const listHunarAgents = (pageSize = 20) =>
