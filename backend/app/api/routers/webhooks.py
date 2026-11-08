@@ -17,17 +17,21 @@ Every request is logged verbatim (with its signature verdict) for debugging.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.db.base import session_scope
 from app.models import Call, WebhookEvent
-from app.services.campaigns import apply_call_payload
+from app.services.campaigns import apply_call_payload, refresh_campaign_for_call
 from app.services.webhook_security import verify_signature
 
 log = get_logger(__name__)
@@ -37,6 +41,7 @@ router = APIRouter(prefix="/webhooks/hunar", tags=["webhooks"])
 
 async def _receive(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session,
     signature: str | None,
     timestamp: str | None,
@@ -57,43 +62,86 @@ async def _receive(
     if not isinstance(payload, dict):
         payload = {"raw": payload}
 
+    event_type = str(payload.get("event_type") or expected_event)
+    call_id = str(payload.get("call_id") or payload.get("id") or "") or None
+    external_id = payload.get("event_id") or payload.get("webhook_id")
+    canonical_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    dedupe_key = (
+        f"event:{event_type}:{call_id or ''}:{external_id}"
+        if external_id
+        else "payload:"
+        + hashlib.sha256(
+            f"{event_type}:{call_id or ''}:{canonical_payload}".encode()
+        ).hexdigest()
+    )
+    # The delivery key lives in the existing JSON payload column, avoiding a
+    # schema change while making retries recognizable across process restarts.
+    event_id = hashlib.sha256(dedupe_key.encode()).hexdigest()[:36]
+    if verdict.valid and db.get(WebhookEvent, event_id):
+        return {"accepted": True, "duplicate": True}
+
+    stored_payload = {**payload, "_delivery_key": dedupe_key}
     event = WebhookEvent(
-        event_type=str(payload.get("event_type") or expected_event),
-        hunar_call_id=str(payload.get("call_id") or payload.get("id") or "") or None,
+        id=event_id if verdict.valid else None,
+        event_type=event_type,
+        hunar_call_id=call_id,
         signature_valid=verdict.valid,
-        payload=payload,
+        payload=stored_payload,
         note=verdict.as_note,
     )
     db.add(event)
 
-    # A configured secret is enforced. Without one we still accept callbacks so
-    # the flow is demonstrable, but every row is flagged as unverified.
-    if settings.webhook_signing_secret and not verdict.valid:
+    # A configured secret is enforced. Deployments without a key retain the
+    # polling fallback; unsigned callbacks are recorded but never applied.
+    if not verdict.valid:
         log.warning(
             "webhook.rejected", event_type=event.event_type, reason=verdict.reason
         )
         db.flush()
         return {"accepted": False, "reason": verdict.reason}
 
-    call = _find_call(db, payload)
-    if call is None:
-        event.note = f"{event.note}; no matching call".strip("; ")
-        db.flush()
-        log.warning("webhook.unmatched", call_id=event.hunar_call_id)
-        return {"accepted": True, "matched": False}
-
-    changed = apply_call_payload(call, _normalise(payload), source="webhook")
-    event.handled = True
     db.flush()
-    log.info(
-        "webhook.applied",
-        # NB: not ``event=`` - structlog already binds that name to the message.
-        event_type=event.event_type,
-        call_id=call.id,
-        changed=changed,
-        signature_valid=verdict.valid,
-    )
-    return {"accepted": True, "matched": True, "changed": changed}
+    event_id = event.id
+    try:
+        db.commit()
+    except IntegrityError:
+        # The deterministic primary key closes the concurrent retry race without
+        # adding a table or migration. A different request may have inserted it.
+        db.rollback()
+        return {"accepted": True, "duplicate": True}
+    background_tasks.add_task(_process_event, event_id)
+    return {"accepted": True, "queued": True}
+
+
+def _process_event(event_id: str) -> None:
+    """Apply the callback after the quick acknowledgement has been sent."""
+    try:
+        with session_scope() as db:
+            event = db.get(WebhookEvent, event_id)
+            if event is None or event.handled:
+                return
+            payload = {
+                k: v for k, v in (event.payload or {}).items() if k != "_delivery_key"
+            }
+            call = _find_call(db, payload)
+            if call is None:
+                event.note = f"{event.note}; no matching call".strip("; ")
+                log.warning("webhook.unmatched", call_id=event.hunar_call_id)
+                return
+            changed = apply_call_payload(call, _normalise(payload), source="webhook")
+            refresh_campaign_for_call(call)
+            event.handled = True
+            log.info(
+                "webhook.applied",
+                event_type=event.event_type,
+                call_id=call.id,
+                changed=changed,
+                signature_valid=event.signature_valid,
+            )
+    except Exception as exc:
+        log.warning(
+            "webhook.processing_failed", event_id=event_id, error=str(exc)[:200]
+        )
 
 
 def _find_call(db: Session, payload: dict[str, Any]) -> Call | None:
@@ -119,48 +167,72 @@ def _normalise(payload: dict[str, Any]) -> dict[str, Any]:
 @router.post("/status")
 async def call_status(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(db_session),
     x_hunar_signature: str | None = Header(default=None),
     x_hunar_timestamp: str | None = Header(default=None),
 ) -> dict[str, Any]:
     return await _receive(
-        request, db, x_hunar_signature, x_hunar_timestamp, "call_status_updated"
+        request,
+        background_tasks,
+        db,
+        x_hunar_signature,
+        x_hunar_timestamp,
+        "call_status_updated",
     )
 
 
 @router.post("/recording")
 async def call_recording(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(db_session),
     x_hunar_signature: str | None = Header(default=None),
     x_hunar_timestamp: str | None = Header(default=None),
 ) -> dict[str, Any]:
     return await _receive(
-        request, db, x_hunar_signature, x_hunar_timestamp, "call_recording_done"
+        request,
+        background_tasks,
+        db,
+        x_hunar_signature,
+        x_hunar_timestamp,
+        "call_recording_done",
     )
 
 
 @router.post("/result")
 async def call_result(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(db_session),
     x_hunar_signature: str | None = Header(default=None),
     x_hunar_timestamp: str | None = Header(default=None),
 ) -> dict[str, Any]:
     return await _receive(
-        request, db, x_hunar_signature, x_hunar_timestamp, "call_result_done"
+        request,
+        background_tasks,
+        db,
+        x_hunar_signature,
+        x_hunar_timestamp,
+        "call_result_done",
     )
 
 
 @router.post("/summary")
 async def call_summary(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(db_session),
     x_hunar_signature: str | None = Header(default=None),
     x_hunar_timestamp: str | None = Header(default=None),
 ) -> dict[str, Any]:
     return await _receive(
-        request, db, x_hunar_signature, x_hunar_timestamp, "call_summary"
+        request,
+        background_tasks,
+        db,
+        x_hunar_signature,
+        x_hunar_timestamp,
+        "call_summary",
     )
 
 

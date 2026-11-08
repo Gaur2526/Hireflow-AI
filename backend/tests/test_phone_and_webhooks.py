@@ -241,7 +241,10 @@ def test_a_non_ascii_signature_is_rejected_not_raised() -> None:
     retries 5XX, so a genuinely corrupted header would be retried forever.
     """
     verdict = verify_signature(
-        secret=SECRET, body=BODY, signature_header=b"\xe9bad".decode("latin-1")
+        secret=SECRET,
+        body=BODY,
+        signature_header=b"\xe9bad".decode("latin-1"),
+        timestamp_header=str(int(time.time())),
     )
 
     assert verdict.valid is False
@@ -329,8 +332,7 @@ def test_hex_encoded_digests_are_also_accepted() -> None:
     assert verdict.valid is True
 
 
-def test_body_only_signature_is_accepted_and_reported() -> None:
-    """Some tenants sign the bare body; the verdict says which scheme matched."""
+def test_missing_timestamp_is_rejected_even_for_a_valid_body_signature() -> None:
     mac = hmac.new(SECRET.encode(), BODY, hashlib.sha256).digest()
     verdict = verify_signature(
         secret=SECRET,
@@ -338,6 +340,5 @@ def test_body_only_signature_is_accepted_and_reported() -> None:
         signature_header=base64.b64encode(mac).decode(),
         timestamp_header=None,
     )
-    assert verdict.valid is True
-    assert verdict.scheme == "body"
-    assert verdict.as_note == "Signature verified (body)"
+    assert verdict.valid is False
+    assert verdict.reason == "Missing X-Hunar-Timestamp header"

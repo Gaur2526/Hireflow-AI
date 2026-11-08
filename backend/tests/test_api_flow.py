@@ -257,7 +257,10 @@ def test_end_to_end_happy_path(
     response = signed_post(client, "/api/webhooks/hunar/result", payload)
 
     assert response.status_code == 200
-    assert response.json() == {"accepted": True, "matched": True, "changed": True}
+    assert response.json() == {"accepted": True, "queued": True}
+    duplicate = signed_post(client, "/api/webhooks/hunar/result", payload)
+    assert duplicate.status_code == 200
+    assert duplicate.json() == {"accepted": True, "duplicate": True}
 
     session = reread()
     stored = session.get(Call, target.id)
@@ -277,6 +280,10 @@ def test_end_to_end_happy_path(
     assert events[0]["event_type"] == "call_result_done"
     assert events[0]["signature_valid"] is True
     assert events[0]["handled"] is True
+    assert (
+        len([event for event in events if event["hunar_call_id"] == "hunar_call_1"])
+        == 1
+    )
 
     # --- 7. the dashboard --------------------------------------------------
     detail = client.get(f"/api/campaigns/{campaign_id}").json()
@@ -420,7 +427,7 @@ def test_a_webhook_for_an_unknown_call_is_accepted_but_not_applied(
         {**RESULT_PAYLOAD_TEMPLATE, "call_id": "hunar_call_does_not_exist"},
     )
     assert response.status_code == 200
-    assert response.json() == {"accepted": True, "matched": False}
+    assert response.json() == {"accepted": True, "queued": True}
 
     event = client.get("/api/webhooks/hunar/events").json()[0]
     assert event["signature_valid"] is True
@@ -473,14 +480,32 @@ def test_status_and_recording_webhooks_merge_into_the_same_call(
     assert stored.duration_seconds == 42.0
 
 
+def test_repeated_launch_idempotency_key_returns_the_existing_campaign(
+    client, factory
+) -> None:
+    job = factory.job()
+    candidate = factory.candidate(job)
+    campaign = factory.campaign(job, request_id="launch-once")
+
+    response = client.post(
+        f"/api/jobs/{job.id}/campaigns",
+        json={"candidate_ids": [candidate.id]},
+        headers={"Idempotency-Key": "launch-once"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["campaign"]["id"] == campaign.id
+    assert response.json()["dispatched"] == 0
+
+
 # ---------------------------------------------------------------------------
 # the fictional-number guardrail
 # ---------------------------------------------------------------------------
 def test_fictional_only_candidates_are_skipped_with_a_readable_reason(
     client, hunar: HunarStub, hunar_key, monkeypatch, settings, reread
 ) -> None:
-    """No DEMO_CALL_REDIRECT_NUMBER: the demo dataset must not be dialled."""
-    monkeypatch.setattr(settings, "demo_call_redirect_number", "")
+    """No DEMO_REDIRECT_NUMBER: the demo dataset must not be dialled."""
+    monkeypatch.setattr(settings, "demo_redirect_number", "")
 
     job_id = client.post(
         "/api/jobs",
@@ -503,7 +528,7 @@ def test_fictional_only_candidates_are_skipped_with_a_readable_reason(
         assert skip["candidate_id"] in chosen
         assert skip["name"]
         assert skip["reason"] == (
-            "Demo number (+1-555-01XX) - set DEMO_CALL_REDIRECT_NUMBER to dial"
+            "Demo number (+1-555-01XX) - set DEMO_REDIRECT_NUMBER to dial"
         )
     assert any("No dialable candidates" in w for w in launch["warnings"])
 

@@ -76,14 +76,15 @@ def verify_signature(
         )
     if not signature_header:
         return VerificationResult(False, "Missing X-Hunar-Signature header")
+    if not timestamp_header:
+        return VerificationResult(False, "Missing X-Hunar-Timestamp header")
 
-    if timestamp_header:
-        try:
-            skew = abs(time.time() - float(timestamp_header))
-        except (TypeError, ValueError):
-            return VerificationResult(False, "Malformed X-Hunar-Timestamp header")
-        if skew > max_skew_seconds:
-            return VerificationResult(False, f"Timestamp skew too large ({skew:.0f}s)")
+    try:
+        skew = abs(time.time() - float(timestamp_header))
+    except (TypeError, ValueError):
+        return VerificationResult(False, "Malformed X-Hunar-Timestamp header")
+    if skew > max_skew_seconds:
+        return VerificationResult(False, f"Timestamp skew too large ({skew:.0f}s)")
 
     expected = _digests(secret, body, timestamp_header)
     # ASGI decodes header bytes as latin-1, so a mangled header can carry
