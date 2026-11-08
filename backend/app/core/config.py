@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-PeopleProvider = Literal["mock", "pdl", "apollo", "proxycurl", "coresignal"]
+PeopleProvider = Literal["mock", "pdl", "apollo", "coresignal"]
 
 
 class Settings(BaseSettings):
@@ -59,14 +59,13 @@ class Settings(BaseSettings):
     people_provider: PeopleProvider = "mock"
     pdl_api_key: str = ""
     apollo_api_key: str = ""
-    proxycurl_api_key: str = ""
     coresignal_api_key: str = ""
 
     # Providers rarely return dialable mobile numbers on free tiers. When set,
     # every outbound call is placed to this number instead of the candidate's,
     # which makes the whole pipeline demonstrable end-to-end without spamming
     # real people. The UI shows a prominent banner whenever it is active.
-    demo_call_redirect_number: str = ""
+    demo_redirect_number: str = ""
 
     # --- LLM (optional) ----------------------------------------------------
     anthropic_api_key: str = ""
@@ -75,7 +74,7 @@ class Settings(BaseSettings):
 
     # --- background sync ---------------------------------------------------
     call_poll_interval_seconds: int = 15
-    call_poll_max_age_minutes: int = 180
+    reconcile_stuck_after_minutes: int = 30
     enable_call_poller: bool = True
 
     # --- static frontend (single-container deploys) ------------------------
@@ -127,7 +126,6 @@ class Settings(BaseSettings):
         return {
             "pdl": self.pdl_api_key,
             "apollo": self.apollo_api_key,
-            "proxycurl": self.proxycurl_api_key,
             "coresignal": self.coresignal_api_key,
             "mock": "built-in",
         }.get(provider, "")

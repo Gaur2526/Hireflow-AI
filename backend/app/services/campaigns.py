@@ -7,6 +7,7 @@ routers stay thin and the same logic is reachable from the background poller.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -49,6 +50,7 @@ async def create_campaign(
     payload: CampaignCreate,
     *,
     client: HunarClient | None = None,
+    idempotency_key: str | None = None,
 ) -> tuple[Campaign, list[dict[str, str]], list[str]]:
     """Create the Hunar agent and one PENDING call row per selected candidate."""
     client = client or get_hunar_client()
@@ -96,12 +98,18 @@ async def create_campaign(
     }
 
     campaign = Campaign(
+        id=(
+            hashlib.sha256(f"{job.id}:{idempotency_key}".encode()).hexdigest()[:36]
+            if idempotency_key
+            else None
+        ),
         job_id=job.id,
         name=name,
         status=CampaignStatus.DRAFT,
         agent_config=agent_config,
         result_schema=result_schema,
         call_defaults=payload.call_defaults.model_dump(),
+        request_id=idempotency_key[:64] if idempotency_key else None,
     )
     db.add(campaign)
     db.flush()
@@ -198,7 +206,7 @@ async def create_campaign(
                 {
                     "candidate_id": candidate.id,
                     "name": candidate.full_name,
-                    "reason": "Demo number (+1-555-01XX) - set DEMO_CALL_REDIRECT_NUMBER to dial",
+                    "reason": "Demo number (+1-555-01XX) - set DEMO_REDIRECT_NUMBER to dial",
                 }
             )
             candidate.status = CandidateStatus.UNREACHABLE
@@ -229,12 +237,36 @@ async def create_campaign(
     return campaign, skipped, warnings
 
 
-def _resolve_candidates(db: Session, job: Job, ids: list[str]) -> list[Candidate]:
+def _resolve_candidates(
+    db: Session, job: Job, ids: list[str] | None
+) -> list[Candidate]:
+    if not ids:
+        return list(
+            db.scalars(
+                select(Candidate)
+                .where(Candidate.job_id == job.id)
+                .where(Candidate.status == CandidateStatus.SHORTLISTED)
+                .order_by(Candidate.fit_score.desc())
+            )
+        )
     stmt = select(Candidate).where(Candidate.job_id == job.id)
-    if ids:
-        stmt = stmt.where(Candidate.id.in_(ids))
-    else:
-        stmt = stmt.where(Candidate.status == CandidateStatus.SHORTLISTED)
+    selected = list(db.scalars(stmt.where(Candidate.id.in_(set(ids)))))
+    if len(selected) != len(set(ids)):
+        raise ValidationFailure(
+            "One or more selected candidates do not belong to this job."
+        )
+    not_shortlisted = [
+        candidate.full_name
+        for candidate in selected
+        if candidate.status != CandidateStatus.SHORTLISTED
+    ]
+    if not_shortlisted:
+        raise ValidationFailure(
+            "Only shortlisted candidates can be called. Shortlist the selected candidate(s) first.",
+            details={"candidates": not_shortlisted},
+        )
+    stmt = stmt.where(Candidate.id.in_(ids))
+    stmt = stmt.where(Candidate.status == CandidateStatus.SHORTLISTED)
     return list(db.scalars(stmt.order_by(Candidate.fit_score.desc())))
 
 
@@ -250,8 +282,8 @@ def _resolve_questions(job: Job, payload: CampaignCreate) -> list[ScreeningQuest
 
 
 def _apply_redirect(number: str) -> tuple[str, bool]:
-    """Route to the operator's test handset when DEMO_CALL_REDIRECT_NUMBER is set."""
-    redirect = settings.demo_call_redirect_number.strip()
+    """Route calls to the demo handset only when DEMO_REDIRECT_NUMBER is set."""
+    redirect = settings.demo_redirect_number.strip()
     if not redirect:
         return number, False
     normalised, _ = normalise_phone(redirect)
@@ -321,12 +353,14 @@ async def dispatch_campaign(
         candidate = call.candidate
         async with semaphore:
             try:
+                request_id = f"rc-{campaign.id[:8]}-{call.id[:8]}"
+                call.request_id = request_id
                 response = await client.create_call(
                     agent_id=campaign.hunar_agent_id,
                     callee_name=candidate.first_name or candidate.full_name,
                     mobile_number=call.dialed_number or "",
                     custom_data=call.custom_data,
-                    request_id=f"rc-{campaign.id[:8]}-{call.id[:8]}",
+                    request_id=request_id,
                     from_phone_number=defaults.from_phone_number,
                     timezone=defaults.timezone,
                     callback_config=callback,
@@ -478,7 +512,7 @@ def apply_call_payload(call: Call, payload: dict[str, Any], *, source: str) -> b
     if payload.get("recording_url"):
         call.recording_url = str(payload["recording_url"])
     if isinstance(payload.get("result"), dict) and payload["result"]:
-        call.result = payload["result"]
+        call.result = {**(call.result or {}), **payload["result"]}
     if isinstance(payload.get("custom_data"), dict) and payload["custom_data"]:
         call.custom_data = {**call.custom_data, **payload["custom_data"]}
 
@@ -510,6 +544,12 @@ def apply_call_payload(call: Call, payload: dict[str, Any], *, source: str) -> b
     return before != after
 
 
+def refresh_campaign_for_call(call: Call) -> None:
+    """Recompute its campaign after any call event, including data-only events."""
+    if call.campaign:
+        _refresh_campaign_status(call.campaign)
+
+
 async def sync_campaign(
     db: Session, campaign: Campaign, *, client: HunarClient | None = None
 ) -> int:
@@ -538,22 +578,17 @@ async def sync_stale_calls(db: Session, *, client: HunarClient | None = None) ->
         return 0
 
     active = {status.value for status in ACTIVE_CALL_STATUSES}
-    cutoff = _now() - timedelta(minutes=settings.call_poll_max_age_minutes)
+    cutoff = _now() - timedelta(minutes=settings.reconcile_stuck_after_minutes)
     # Result extraction lands *after* a call reaches COMPLETED, so a completed
     # call with an empty result is still worth re-polling. Do not compare the
     # JSON column to `{}` in SQL: PostgreSQL's `json` type deliberately has no
-    # equality operator (unlike SQLite's JSON storage). Select recent completed
-    # rows, then perform that small portable check in Python below.
+    # equality operator (unlike SQLite's JSON storage).
     stmt = (
         select(Call)
         .where(Call.hunar_call_id.is_not(None))
-        # Age off the last successful sync, not creation: Hunar parks
-        # guardrail-deferred calls in SCHEDULED until the next morning and
-        # retries hours later, which a created_at window would drop entirely.
-        .where(or_(Call.last_synced_at >= cutoff, Call.created_at >= cutoff))
         .where(
             or_(
-                    Call.status.in_(active),
+                Call.status.in_(active),
                 Call.status == CallStatus.COMPLETED,
             )
         )
@@ -567,11 +602,34 @@ async def sync_stale_calls(db: Session, *, client: HunarClient | None = None) ->
         if call.status in active
         or (call.status == CallStatus.COMPLETED and not call.result)
     ]
-    if not calls:
-        return 0
-
-    updated = await _sync_calls(db, calls, client)
-    for campaign in {c.campaign for c in calls if c.campaign}:
+    updated = await _sync_calls(db, calls, client) if calls else 0
+    # Calls whose live Hunar state stays in a non-scheduled active phase past
+    # the threshold are terminalized. A transport failure is terminalized only
+    # when the last successful sync is equally old.
+    for call in calls:
+        status_started = call.started_at or call.created_at
+        last_contact = call.last_synced_at or call.created_at
+        old_active_status = (
+            call.status in (active - {CallStatus.SCHEDULED.value})
+            and status_started
+            and status_started < cutoff
+        )
+        old_sync_failure = call.error and last_contact and last_contact < cutoff
+        if call.status in active and (old_active_status or old_sync_failure):
+            reason = call.error or (
+                f"Hunar call remained {call.status} for more than "
+                f"{settings.reconcile_stuck_after_minutes} minutes."
+            )
+            call.status = CallStatus.FAILED
+            call.error = (
+                f"Call reconciliation failed after "
+                f"{settings.reconcile_stuck_after_minutes} minutes: {reason}"
+            )
+            if call.candidate:
+                call.candidate.status = CandidateStatus.UNREACHABLE
+    for campaign in db.scalars(
+        select(Campaign).where(Campaign.status == CampaignStatus.RUNNING)
+    ):
         _refresh_campaign_status(campaign)
     db.flush()
     return updated
@@ -593,9 +651,11 @@ async def _sync_calls(db: Session, calls: list[Call], client: HunarClient) -> in
     for call, payload, error in await asyncio.gather(*(_fetch(c) for c in calls)):
         if error or not payload:
             log.warning("call.sync_failed", call_id=call.id, error=error)
+            call.error = error or "Hunar returned no call state during reconciliation."
             continue
         if apply_call_payload(call, payload, source="poll"):
             updated += 1
+        call.error = None
     return updated
 
 

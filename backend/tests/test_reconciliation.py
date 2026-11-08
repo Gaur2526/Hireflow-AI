@@ -20,6 +20,7 @@ from app.services.campaigns import (
     compute_stats,
     compute_stats_across,
     sync_stale_calls,
+    refresh_campaign_for_call,
 )
 
 COMPLETED_PAYLOAD = {
@@ -147,6 +148,23 @@ def test_a_result_still_merges_into_a_completed_call(completed_call) -> None:
     assert completed_call.result["notice_period"] == "immediate"
 
 
+def test_any_call_event_recomputes_a_campaign_after_the_last_call_finishes(
+    db, factory
+) -> None:
+    job = factory.job()
+    campaign = factory.campaign(job, status="RUNNING")
+    call = factory.call(
+        campaign,
+        factory.candidate(job),
+        status=CallStatus.COMPLETED,
+        result={},
+    )
+
+    refresh_campaign_for_call(call)
+
+    assert campaign.status == "COMPLETED"
+
+
 # ---------------------------------------------------------------------------
 # Poller selection window
 # ---------------------------------------------------------------------------
@@ -161,7 +179,7 @@ async def test_the_poller_still_reconciles_a_call_hunar_parked_overnight(
         status=CallStatus.SCHEDULED,
         hunar_call_id="hunar_call_parked",
     )
-    stale = _now() - timedelta(minutes=settings.call_poll_max_age_minutes + 60)
+    stale = _now() - timedelta(minutes=settings.reconcile_stuck_after_minutes + 60)
     call.created_at = stale
     call.last_synced_at = _now() - timedelta(minutes=1)
     db.commit()
@@ -178,8 +196,8 @@ async def test_the_poller_still_reconciles_a_call_hunar_parked_overnight(
     assert db.get(Call, call.id).status == CallStatus.COMPLETED
 
 
-async def test_a_call_nobody_has_heard_from_in_hours_is_dropped(
-    db, factory, hunar_key, settings
+async def test_a_long_stale_call_is_polled_and_reconciled(
+    db, factory, hunar_key, respx_mock, settings
 ) -> None:
     job = factory.job()
     call = factory.call(
@@ -188,12 +206,50 @@ async def test_a_call_nobody_has_heard_from_in_hours_is_dropped(
         status=CallStatus.SCHEDULED,
         hunar_call_id="hunar_call_abandoned",
     )
-    stale = _now() - timedelta(minutes=settings.call_poll_max_age_minutes + 60)
+    stale = _now() - timedelta(minutes=settings.reconcile_stuck_after_minutes + 60)
     call.created_at = stale
     call.last_synced_at = stale
     db.commit()
 
-    assert await sync_stale_calls(db) == 0
+    respx_mock.get(
+        "https://api.voice.hunar.ai/external/v1/calls/hunar_call_abandoned/"
+    ).mock(
+        return_value=httpx.Response(
+            200, json={"id": "hunar_call_abandoned", "status": "COMPLETED"}
+        )
+    )
+
+    assert await sync_stale_calls(db) == 1
+    assert db.get(Call, call.id).status == CallStatus.COMPLETED
+
+
+async def test_a_non_scheduled_call_stuck_past_threshold_fails_with_reason(
+    db, factory, hunar_key, respx_mock, settings
+) -> None:
+    job = factory.job()
+    call = factory.call(
+        factory.campaign(job),
+        factory.candidate(job),
+        status=CallStatus.IN_PROGRESS,
+        hunar_call_id="hunar_call_stuck",
+    )
+    call.started_at = _now() - timedelta(
+        minutes=settings.reconcile_stuck_after_minutes + 1
+    )
+    db.commit()
+    respx_mock.get(
+        "https://api.voice.hunar.ai/external/v1/calls/hunar_call_stuck/"
+    ).mock(
+        return_value=httpx.Response(
+            200, json={"id": "hunar_call_stuck", "status": "IN_PROGRESS"}
+        )
+    )
+
+    await sync_stale_calls(db)
+
+    stored = db.get(Call, call.id)
+    assert stored.status == CallStatus.FAILED
+    assert "remained IN_PROGRESS" in stored.error
 
 
 async def test_the_poller_retries_a_completed_call_with_an_empty_result(

@@ -119,7 +119,7 @@ otherwise be cold-calling a synthetic person. Two ways to place a real call:
 
 ```bash
 # backend/.env
-DEMO_CALL_REDIRECT_NUMBER=+919876543210
+DEMO_REDIRECT_NUMBER=+919876543210
 ```
 
 Every call in every campaign goes to that number instead of the candidate's. The
@@ -238,12 +238,6 @@ implementations. Switch with `PEOPLE_PROVIDER` and the matching key.
 | **People Data Labs** | Ready, needs `PDL_API_KEY` | `mobile_phone` / `phone_numbers`, plan-dependent | Sends `dataset: "all"` — the default `resume` dataset fills mobiles on ~7% of records |
 | **Apollo.io** | Ready, needs `APOLLO_API_KEY` | Masked on search | Direct dials need the enrichment endpoint; the UI says so instead of showing empty columns |
 | **Coresignal** | Ready, needs `CORESIGNAL_API_KEY` | **None, any tier** | Its acceptable-use policy excludes personal phone numbers; employee records carry professional email only |
-| **Proxycurl** | **Retired** | — | Shut down 2025-07-04 after *LinkedIn Corp. v. Nubela Pte. Ltd.* (No. 3:25-cv-00828, N.D. Cal.); every endpoint returns HTTP 410 |
-
-Proxycurl is listed in the assignment brief, so rather than delete it the
-provider is kept as an explicit tombstone: it fails fast with the reason, the
-settings page marks it *retired*, and the registry falls back to a live provider.
-
 The honest summary: **on free tiers, none of these vendors reliably hand you a
 dialable mobile number.** That is a real constraint on this problem, not a gap in
 the integration — which is why the app makes numbers editable per candidate and
@@ -263,10 +257,11 @@ Every setting, with a working default. See `.env.example`.
 | `ANTHROPIC_API_KEY` | — | Optional. LLM JD parsing + question design |
 | `DATABASE_URL` | `sqlite:///./data/hireflow.db` | Any Postgres DSN also works |
 | `PUBLIC_BASE_URL` | — | HTTPS base for Hunar webhooks; empty ⇒ polling |
-| `DEMO_CALL_REDIRECT_NUMBER` | — | Route every call to one test handset |
+| `DEMO_REDIRECT_NUMBER` | — | Route every call to one test handset |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated, or `*` |
 | `ENABLE_CALL_POLLER` | `true` | Background reconciliation loop |
 | `CALL_POLL_INTERVAL_SECONDS` | `15` | Poll cadence |
+| `RECONCILE_STUCK_AFTER_MINUTES` | `30` | Fail a non-scheduled call that stays active past this age |
 
 ---
 

@@ -81,21 +81,19 @@ services:
         value: ENGLISH
 
       # --- people search -----------------------------------------------------
-      # mock | pdl | apollo | proxycurl | coresignal
+      # mock | pdl | apollo | coresignal
       - key: PEOPLE_PROVIDER
         value: mock
       - key: PDL_API_KEY
         sync: false
       - key: APOLLO_API_KEY
         sync: false
-      - key: PROXYCURL_API_KEY
-        sync: false
       - key: CORESIGNAL_API_KEY
         sync: false
 
       # Every outbound call goes to this number instead of the candidate's.
       # Set it (in E.164, e.g. +919876543210) for demos so nobody is cold-called.
-      - key: DEMO_CALL_REDIRECT_NUMBER
+      - key: DEMO_REDIRECT_NUMBER
         sync: false
 
       # --- LLM (optional) ----------------------------------------------------
@@ -111,8 +109,8 @@ services:
         value: "true"
       - key: CALL_POLL_INTERVAL_SECONDS
         value: "15"
-      - key: CALL_POLL_MAX_AGE_MINUTES
-        value: "180"
+      - key: RECONCILE_STUCK_AFTER_MINUTES
+        value: "30"
 
       # --- limits ------------------------------------------------------------
       - key: MAX_CANDIDATES_PER_SEARCH
