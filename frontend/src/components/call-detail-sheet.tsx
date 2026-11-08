@@ -87,7 +87,7 @@ export function CallDetailSheet({
                 </p>
               ) : null}
 
-              <section className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-blue-50/70 p-4 dark:to-blue-950/20">
+              <section className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-teal-50/70 p-4 dark:to-teal-950/20">
                 <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                   <ClipboardCheck className="size-4 text-primary" /> Screening highlights
                 </div>

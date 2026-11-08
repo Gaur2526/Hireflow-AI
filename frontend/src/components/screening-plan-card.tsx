@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/accordion";
 
 const TYPE_TONE: Record<string, string> = {
-  boolean: "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
+  boolean: "bg-teal-50 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300",
   number: "bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
   enum: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
   string: "bg-muted text-muted-foreground",

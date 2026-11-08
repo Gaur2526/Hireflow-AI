@@ -122,10 +122,10 @@ export default function CampaignPage() {
             <span className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{data.campaign.status}</Badge>
               {live ? (
-                <span className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                <span className="flex items-center gap-1.5 text-xs text-teal-600 dark:text-teal-400">
                   <span className="relative flex size-2">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-teal-400 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-teal-500" />
                   </span>
                   live — refreshing every 5s
                 </span>
@@ -210,7 +210,7 @@ export default function CampaignPage() {
             <Card>
               <CardHeader className="border-b border-border/70 pb-4">
                 <div className="flex items-center gap-3">
-                  <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20"><BarChart3 className="size-4" /></span>
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-cyan-500 text-white shadow-lg shadow-teal-500/20"><BarChart3 className="size-4" /></span>
                   <div>
                     <div className="eyebrow text-primary">Screening intelligence</div>
                     <CardTitle className="mt-0.5 text-lg">Candidate answers</CardTitle>
@@ -252,7 +252,7 @@ function CampaignMetric({
   tone: "blue" | "green" | "violet" | "amber" | "rose" | "cyan";
 }) {
   const tones = {
-    blue: "bg-blue-50 text-blue-600",
+    blue: "bg-teal-50 text-teal-600",
     green: "bg-emerald-50 text-emerald-600",
     violet: "bg-violet-50 text-violet-600",
     amber: "bg-amber-50 text-amber-600",

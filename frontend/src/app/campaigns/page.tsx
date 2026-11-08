@@ -111,7 +111,7 @@ export default function CampaignsPage() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {campaign.status === "RUNNING" ? (
-                            <span className="flex items-center gap-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-teal-700 dark:text-teal-300">
                               <Radio className="size-3.5 animate-pulse" /> Live
                             </span>
                           ) : (

@@ -74,38 +74,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="mx-3 mb-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
-          <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.12em] text-cyan-100/75 uppercase">
-            <Sparkles className="size-3" /> System status
+        <div className="mx-3 mb-3 rounded-2xl border border-white/10 bg-slate-900/45 p-3.5 shadow-inner shadow-black/10">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-slate-300 uppercase">
+              <Sparkles className="size-3.5 text-cyan-200" aria-hidden /> System status
+            </div>
+            <span className="size-1.5 rounded-full bg-cyan-300/80" aria-hidden />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <StatusLine
               label="Voice AI"
               ok={hunarHealth?.status === "ok"}
               offline={offline}
               detail={hunarHealth?.status === "ok"
-                ? "Hunar connected"
+                ? "Connected"
                 : hunarHealth?.status === "not_configured"
-                  ? "No API key"
-                  : hunarHealth?.reason ?? "Checking Hunar"}
+                  ? "Key missing"
+                  : hunarHealth?.status === "retired"
+                    ? "Unavailable"
+                    : hunarHealth
+                      ? "Auth failed"
+                      : "Checking"}
             />
             <StatusLine
               label="Sourcing"
               ok={Boolean(config)}
               offline={offline}
-              detail={
-                config?.providers.find((p) => p.active)?.label ?? config?.people_provider
-              }
+              detail={!config ? "Checking" : config.people_provider === "mock" ? "Demo data" : "Connected"}
               tone={config?.people_provider === "mock" ? "warning" : "ok"}
             />
             <StatusLine
               label="Callbacks"
               ok={config?.webhooks.available}
               offline={offline}
-              detail={config?.webhooks.available ? "Webhooks live" : "Polling"}
+              detail={!config ? "Checking" : config.webhooks.available ? "Live" : "Polling"}
               tone={config?.webhooks.available ? "ok" : "warning"}
             />
           </div>
+          <Link
+            href="/settings"
+            className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-[11px] font-medium text-slate-300 transition-colors hover:text-cyan-200"
+          >
+            View connection details <span aria-hidden>→</span>
+          </Link>
         </div>
       </aside>
 
@@ -138,21 +149,18 @@ function StatusLine({
   tone?: "ok" | "warning";
 }) {
   const state = offline ? "down" : ok === undefined ? "loading" : ok ? tone : "warning";
-  const dot = {
-    loading: "bg-muted-foreground/40",
-    ok: "bg-emerald-500",
-    warning: "bg-amber-500",
-    down: "bg-red-500",
+  const styles = {
+    loading: "bg-white/10 text-slate-300",
+    ok: "bg-emerald-400/10 text-emerald-200",
+    warning: "bg-amber-400/10 text-amber-200",
+    down: "bg-red-400/10 text-red-200",
   }[state];
 
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-slate-400">{label}</span>
-      <span className="flex items-center gap-1.5 truncate">
-        <span className={cn("size-1.5 shrink-0 rounded-full", dot)} aria-hidden />
-        <span className="truncate" title={detail ?? undefined}>
-          {offline ? "API offline" : (detail ?? "…")}
-        </span>
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-xs text-slate-400">{label}</span>
+      <span className={cn("max-w-[112px] shrink-0 truncate rounded-full px-2 py-0.5 text-[10px] font-medium", styles)}>
+        {offline ? "Offline" : (detail ?? "Checking")}
       </span>
     </div>
   );

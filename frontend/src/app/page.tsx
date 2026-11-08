@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.8fr)]">
               <Card className="workspace-card overflow-hidden">
-                <CardHeader className="border-b border-border/70 bg-gradient-to-r from-blue-50/70 to-cyan-50/60 dark:from-blue-950/25 dark:to-cyan-950/10">
+                <CardHeader className="border-b border-border/70 bg-gradient-to-r from-teal-50/70 to-cyan-50/60 dark:from-teal-950/25 dark:to-cyan-950/10">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="eyebrow text-primary">Hiring pipeline</div>
@@ -90,7 +90,7 @@ export default function DashboardPage() {
               <Card className="workspace-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-blue-50 text-primary"><Briefcase className="size-3.5" /></span>
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-teal-50 text-primary"><Briefcase className="size-3.5" /></span>
                     Recent jobs
                   </CardTitle>
                 </CardHeader>
@@ -190,7 +190,7 @@ function FunnelStage({
   tint: "blue" | "cyan" | "violet" | "emerald" | "rose";
 }) {
   const palette = {
-    blue: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+    blue: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
     cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
     violet: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
     emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
@@ -207,7 +207,7 @@ function FunnelStage({
       </div>
       <div className="mt-3 text-2xl font-semibold tracking-tight tabular-nums">{value.toLocaleString()}</div>
       <div className="text-muted-foreground mt-0.5 text-xs font-medium">{label}</div>
-      {conversion !== null ? <Progress value={Math.min(conversion, 100)} className="mt-3 h-1" /> : <div className="mt-3 h-1 rounded-full bg-blue-200 dark:bg-blue-900" />}
+      {conversion !== null ? <Progress value={Math.min(conversion, 100)} className="mt-3 h-1" /> : <div className="mt-3 h-1 rounded-full bg-teal-200 dark:bg-teal-900" />}
     </div>
   );
 }
@@ -249,7 +249,7 @@ function NeedsAttention({
             {items.slice(0, 4).map((item) => (
               <li key={item.title}>
                 <Link href={item.href} className="group flex items-start gap-3 py-3">
-                  <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${item.tone === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"}`}>
+                  <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${item.tone === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300"}`}>
                     {item.tone === "warning" ? <AlertTriangle className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -281,7 +281,7 @@ function DemoJourney() {
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-[linear-gradient(120deg,oklch(0.25_0.07_258),oklch(0.36_0.11_254)_55%,oklch(0.37_0.09_218))] p-6 text-white shadow-xl shadow-blue-950/10 sm:p-8">
+    <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-[linear-gradient(120deg,oklch(0.24_0.055_190),oklch(0.34_0.08_178)_55%,oklch(0.38_0.09_155))] p-6 text-white shadow-xl shadow-teal-950/10 sm:p-8">
       <div className="absolute -top-20 right-4 size-64 rounded-full bg-cyan-300/10 blur-3xl" />
       <div className="relative grid gap-8 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-end">
         <div>
@@ -289,7 +289,7 @@ function DemoJourney() {
             <Play className="size-3 fill-current" /> Guided demo
           </div>
           <h2 className="max-w-md text-2xl font-semibold tracking-tight sm:text-3xl">See the complete HireFlow workflow in a few minutes.</h2>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-blue-100">Explore the product with a sample role and fictional synthetic candidates. No personal data is used, and dry run keeps the voice campaign safe to test.</p>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-teal-100">Explore the product with a sample role and fictional synthetic candidates. No personal data is used, and dry run keeps the voice campaign safe to test.</p>
           <Button asChild className="mt-5 bg-cyan-300 text-slate-950 hover:bg-cyan-200">
             <Link href="/jobs/new">Start demo <ArrowRight className="size-4" /></Link>
           </Button>
@@ -299,10 +299,10 @@ function DemoJourney() {
             <li key={title} className="rounded-xl border border-white/10 bg-slate-950/15 p-4 backdrop-blur-sm">
               <div className="mb-5 flex items-center justify-between">
                 <span className="flex size-8 items-center justify-center rounded-lg bg-white/10 text-cyan-200"><Icon className="size-4" /></span>
-                {active ? <span className="flex size-5 items-center justify-center rounded-full bg-cyan-300 text-slate-900"><Check className="size-3" /></span> : <span className="text-xs font-semibold text-blue-200">0{index + 1}</span>}
+                {active ? <span className="flex size-5 items-center justify-center rounded-full bg-cyan-300 text-slate-900"><Check className="size-3" /></span> : <span className="text-xs font-semibold text-teal-200">0{index + 1}</span>}
               </div>
               <div className="text-sm font-semibold">{title}</div>
-              <p className="mt-1.5 text-xs leading-5 text-blue-100/80">{detail}</p>
+              <p className="mt-1.5 text-xs leading-5 text-teal-100/80">{detail}</p>
             </li>
           ))}
         </ol>

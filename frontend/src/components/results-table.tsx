@@ -77,7 +77,7 @@ export function ResultsTable({
                 <TableRow key={call.id}>
                   <TableCell className="sticky left-0 z-10 bg-card">
                     <div className="flex items-center gap-2">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 text-xs font-bold text-primary">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 text-xs font-bold text-primary">
                         {call.candidate_name.slice(0, 1).toUpperCase()}
                       </span>
                       <div className="min-w-0">
