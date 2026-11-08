@@ -96,7 +96,7 @@ export default function DashboardPage() {
                             <div className="min-w-0">
                               <div className="truncate text-sm font-medium">{job.title}</div>
                               <div className="text-muted-foreground truncate text-xs">
-                                {job.company ?? "—"} · {formatRelative(job.created_at)}
+                                {job.company || "Company not provided"} · {formatRelative(job.created_at)}
                               </div>
                             </div>
                             <ArrowRight className="text-muted-foreground size-4 shrink-0" />

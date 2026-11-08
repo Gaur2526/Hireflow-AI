@@ -24,7 +24,7 @@ _MAX_JD_CHARS = 20_000
 
 SYSTEM_PROMPT = """You are a technical sourcing analyst. You read a job \
 description and extract precise, machine-usable search criteria for querying a \
-people-search API (People Data Labs / Apollo / Proxycurl / Coresignal).
+people-search API (People Data Labs / Apollo / Coresignal).
 
 Rules:
 - `titles`: 3-6 realistic job titles a matching candidate would ACTUALLY have on \

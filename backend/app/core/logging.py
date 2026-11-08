@@ -28,7 +28,6 @@ _SECRET_KEYS = {
     "anthropic_api_key",
     "pdl_api_key",
     "apollo_api_key",
-    "proxycurl_api_key",
     "coresignal_api_key",
     "password",
     "token",

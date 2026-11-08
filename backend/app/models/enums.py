@@ -13,7 +13,6 @@ class JobStatus(StrEnum):
 class CandidateSource(StrEnum):
     PDL = "pdl"
     APOLLO = "apollo"
-    PROXYCURL = "proxycurl"
     CORESIGNAL = "coresignal"
     MOCK = "mock"
     MANUAL = "manual"

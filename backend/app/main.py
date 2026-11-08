@@ -29,7 +29,7 @@ Paste a job description, source matching people from a people-search API, let an
 AI voice agent screen them over the phone, and read the structured answers back
 in a dashboard.
 
-* **People search** - People Data Labs, Apollo.io, Proxycurl or Coresignal behind
+* **People search** - People Data Labs, Apollo.io or Coresignal behind
   one interface, plus a built-in demo dataset so the flow works with no vendor key.
 * **Voice AI** - [Hunar Voice Agents](https://api.voice.hunar.ai/docs/external/).
   The job description becomes the agent's prompt and its `result_schema`.

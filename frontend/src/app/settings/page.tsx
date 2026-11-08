@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 
 import { getConfig, listWebhookEvents, pingHunar } from "@/lib/api";
-import { formatRelative } from "@/lib/format";
+import { formatDateTime, formatRelative } from "@/lib/format";
 import { useAsync } from "@/hooks/use-async";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +17,15 @@ import {
 } from "@/components/primitives";
 
 export default function SettingsPage() {
+  const [now, setNow] = useState<number | null>(null);
   const config = useAsync(getConfig);
   const ping = useAsync(pingHunar);
   const events = useAsync(() => listWebhookEvents(15));
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setNow(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <>
@@ -56,9 +63,19 @@ export default function SettingsPage() {
                       ? "checking…"
                       : ping.data?.ok
                         ? `reachable · ${ping.data.agents_visible} agents visible`
-                        : (ping.data?.reason ?? "unreachable")
+                        : (ping.data?.reason ?? ping.error ?? "unreachable")
                   }
                 />
+                {(ping.data && !ping.data.ok) || ping.error ? (
+                  <div
+                    role="alert"
+                    className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+                  >
+                    <strong>Hunar connection failed.</strong> Check that the backend
+                    has the current <code>HUNAR_API_KEY</code> and restart it after
+                    updating the environment. The key is never shown here.
+                  </div>
+                ) : null}
                 <Row
                   label="Webhook signing"
                   ok
@@ -162,6 +179,22 @@ export default function SettingsPage() {
                 <CardTitle className="text-base">Recent webhook callbacks</CardTitle>
               </CardHeader>
               <CardContent>
+                {(() => {
+                  const latest = events.data?.[0]?.received_at;
+                  const stale = config.data.webhooks.available &&
+                    now !== null &&
+                    (!latest || now - new Date(latest).getTime() > 30 * 60_000);
+                  return (
+                    <div className="mb-3 rounded-md border px-3 py-2 text-xs">
+                      <div>Last webhook received: {latest ? `${formatDateTime(latest)} (${formatRelative(latest)})` : "never"}</div>
+                      {stale ? (
+                        <div className="mt-1 text-amber-700 dark:text-amber-300">
+                          Webhook activity is stale. Check the Hunar callback URL and recent deliveries.
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })()}
                 {events.data?.length ? (
                   <ul className="divide-y text-sm">
                     {events.data.map((event) => (

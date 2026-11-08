@@ -83,7 +83,7 @@ export default function JobsPage() {
                       ) : null}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {job.company ?? "—"}
+                      {job.company || "Company not provided"}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {job.candidate_count}

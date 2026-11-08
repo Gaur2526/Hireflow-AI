@@ -17,7 +17,6 @@ from app.services.people_search.base import (
 from app.services.people_search.coresignal import CoresignalProvider
 from app.services.people_search.mock import MockPeopleSearchProvider
 from app.services.people_search.pdl import PDLProvider
-from app.services.people_search.proxycurl import ProxycurlProvider
 
 log = get_logger(__name__)
 
@@ -25,7 +24,6 @@ _CLASSES: dict[str, type[PeopleSearchProvider]] = {
     MockPeopleSearchProvider.name: MockPeopleSearchProvider,
     PDLProvider.name: PDLProvider,
     ApolloProvider.name: ApolloProvider,
-    ProxycurlProvider.name: ProxycurlProvider,
     CoresignalProvider.name: CoresignalProvider,
 }
 

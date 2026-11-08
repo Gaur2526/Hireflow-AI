@@ -1,6 +1,6 @@
 """Provider-agnostic contract for people search.
 
-Every vendor (PDL, Apollo, Proxycurl, Coresignal, plus a built-in offline
+Every vendor (PDL, Apollo, Coresignal, plus a built-in offline
 provider) returns the same :class:`SourcedProfile` shape, so the rest of the
 application never learns which vendor produced a candidate.
 """
