@@ -215,7 +215,7 @@ class Call(Base, TimestampMixin):
     call_ended_by: Mapped[str | None] = mapped_column(String(32))
 
     dialed_number: Mapped[str | None] = mapped_column(String(32))
-    #: True when DEMO_CALL_REDIRECT_NUMBER rerouted this call away from the candidate.
+    #: True when DEMO_REDIRECT_NUMBER rerouted this call away from the candidate.
     dialed_redirected: Mapped[bool] = mapped_column(Boolean, default=False)
 
     duration_seconds: Mapped[float | None] = mapped_column(Float)

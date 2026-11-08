@@ -53,7 +53,7 @@ defaults lives in `render.yaml`; this is the short version of what actually matt
 | `PEOPLE_PROVIDER` | `mock` \| `pdl` \| `apollo` \| `coresignal` | no |
 | `PDL_API_KEY` / `APOLLO_API_KEY` / `CORESIGNAL_API_KEY` | vendor key for the chosen provider | **yes** |
 | `ANTHROPIC_API_KEY` | optional; without it JD parsing falls back to a deterministic parser | **yes** |
-| `DEMO_CALL_REDIRECT_NUMBER` | E.164 number that receives **every** outbound call. Set this for demos so no stranger is called | **yes-ish** |
+| `DEMO_REDIRECT_NUMBER` | E.164 number that receives **every** outbound call. Set this for demos so no stranger is called | **yes-ish** |
 | `ENABLE_CALL_POLLER` | `true` on Render/Docker, `false` on Vercel | no |
 | `ENVIRONMENT` | `production` | no |
 
@@ -243,7 +243,7 @@ curl https://<random>.trycloudflare.com/healthz      # {"status":"ok"}
 Hunar will call `https://<random>.trycloudflare.com/api/webhooks/hunar/{status,recording,result,summary}`.
 
 Caveats: the URL changes on every run (rerun `make tunnel`, restart the backend), and it
-dies when you close that terminal. Set `DEMO_CALL_REDIRECT_NUMBER` while testing so every
+dies when you close that terminal. Set `DEMO_REDIRECT_NUMBER` while testing so every
 call lands on your own phone.
 
 ---

@@ -40,10 +40,9 @@ os.environ.update(
         "PEOPLE_PROVIDER": "mock",
         "PDL_API_KEY": "",
         "APOLLO_API_KEY": "",
-        "PROXYCURL_API_KEY": "",
         "CORESIGNAL_API_KEY": "",
         "PUBLIC_BASE_URL": "",
-        "DEMO_CALL_REDIRECT_NUMBER": "",
+        "DEMO_REDIRECT_NUMBER": "",
         "ENABLE_CALL_POLLER": "false",
         "SERVE_FRONTEND": "false",
         "DEFAULT_COUNTRY_CODE": "IN",
@@ -185,8 +184,8 @@ def hunar_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 @pytest.fixture
 def demo_redirect(monkeypatch: pytest.MonkeyPatch) -> str:
-    """Turn on DEMO_CALL_REDIRECT_NUMBER for this test."""
-    monkeypatch.setattr(settings_obj, "demo_call_redirect_number", FAKE_REDIRECT_NUMBER)
+    """Turn on DEMO_REDIRECT_NUMBER for this test."""
+    monkeypatch.setattr(settings_obj, "demo_redirect_number", FAKE_REDIRECT_NUMBER)
     return FAKE_REDIRECT_NUMBER
 
 

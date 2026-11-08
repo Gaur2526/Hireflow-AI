@@ -1,6 +1,6 @@
 """Offline people-search provider.
 
-The commercial vendors (PDL, Apollo, Proxycurl, Coresignal) all require a paid
+The commercial vendors (PDL, Apollo, Coresignal) all require a paid
 key before they return dialable mobile numbers. This provider makes the whole
 pipeline demonstrable with zero credentials: it synthesises a realistic,
 *deterministic* candidate pool that genuinely reflects the parsed job criteria,
@@ -8,7 +8,7 @@ so search -> scoring -> shortlist -> voice screening -> dashboard all behave the
 way they would against a live vendor.
 
 Phone numbers come from the +1-555-01XX range reserved for fiction, so nothing
-here can dial a real person. Set ``DEMO_CALL_REDIRECT_NUMBER`` to route demo
+here can dial a real person. Set ``DEMO_REDIRECT_NUMBER`` to route demo
 calls to your own handset.
 """
 
@@ -274,7 +274,7 @@ class MockPeopleSearchProvider(PeopleSearchProvider):
                 "Synthetic dataset - profiles are generated from the parsed job "
                 "criteria, not sourced from a live vendor.",
                 "Phone numbers use the +1-555-01XX range reserved for fiction and "
-                "cannot reach a real person. Set DEMO_CALL_REDIRECT_NUMBER to place "
+                "cannot reach a real person. Set DEMO_REDIRECT_NUMBER to place "
                 "a real test call.",
             ],
         )
