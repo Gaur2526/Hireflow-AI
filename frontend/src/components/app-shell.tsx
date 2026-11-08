@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { getConfig } from "@/lib/api";
+import { getConfig, pingHunar } from "@/lib/api";
 import type { AppConfig } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
@@ -27,12 +27,16 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [hunarHealth, setHunarHealth] = useState<Awaited<ReturnType<typeof pingHunar>> | null>(null);
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     getConfig()
       .then(setConfig)
       .catch(() => setOffline(true));
+    pingHunar().then(setHunarHealth).catch(() => setHunarHealth({
+      status: "failing", ok: false, reason: "Hunar health check unavailable",
+    }));
   }, []);
 
   return (
@@ -77,9 +81,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="space-y-2">
             <StatusLine
               label="Voice AI"
-              ok={config?.hunar.configured}
+              ok={hunarHealth?.status === "ok"}
               offline={offline}
-              detail={config?.hunar.configured ? "Hunar connected" : "No API key"}
+              detail={hunarHealth?.status === "ok"
+                ? "Hunar connected"
+                : hunarHealth?.status === "not_configured"
+                  ? "No API key"
+                  : hunarHealth?.reason ?? "Checking Hunar"}
             />
             <StatusLine
               label="Sourcing"
@@ -104,9 +112,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileNav pathname={pathname} />
         {config?.demo_call_redirect.enabled ? (
-          <div className="border-b border-amber-200 bg-amber-50 px-6 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            <strong className="font-medium">Demo redirect active.</strong> Every call is
-            placed to {config.demo_call_redirect.number}, not to the sourced candidate.
+          <div className="flex justify-end px-6 pt-3">
+            <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Demo mode: calls redirected · {config.demo_call_redirect.number}
+            </span>
           </div>
         ) : null}
         <main className="min-w-0 flex-1">{children}</main>

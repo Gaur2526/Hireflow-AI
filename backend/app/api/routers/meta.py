@@ -5,6 +5,7 @@ Deliberately reports *whether* credentials exist, never their values.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import APIRouter
@@ -19,6 +20,9 @@ from app.services.llm import get_llm
 from app.services.people_search.registry import provider_status
 
 router = APIRouter(prefix="/meta", tags=["meta"])
+
+_HUNAR_HEALTH_TTL_SECONDS = 60
+_hunar_health_cache: tuple[float, dict[str, Any]] | None = None
 
 
 @router.get("/health")
@@ -66,8 +70,8 @@ def config() -> dict[str, Any]:
             "poll_interval_seconds": settings.call_poll_interval_seconds,
         },
         "demo_call_redirect": {
-            "enabled": bool(settings.demo_call_redirect_number),
-            "number": settings.demo_call_redirect_number or None,
+            "enabled": bool(settings.demo_redirect_number),
+            "number": _mask_redirect(settings.demo_redirect_number),
         },
         "voice_options": {
             "personas": hunar_mod.VOICE_PERSONAS,
@@ -85,9 +89,40 @@ def config() -> dict[str, Any]:
     }
 
 
+def _mask_redirect(number: str) -> str | None:
+    digits = "".join(char for char in number if char.isdigit())
+    if not digits:
+        return None
+    suffix = digits[-5:]
+    prefix = f"+{digits[:-10]}" if len(digits) > 10 else "+"
+    return f"{prefix} ••••• {suffix}"
+
+
 @router.get("/hunar/ping")
 async def hunar_ping() -> dict[str, Any]:
-    return await get_hunar_client().ping()
+    """Shared authenticated Hunar health check, cached for one minute."""
+    global _hunar_health_cache
+    now = time.monotonic()
+    if (
+        _hunar_health_cache is not None
+        and now - _hunar_health_cache[0] < _HUNAR_HEALTH_TTL_SECONDS
+    ):
+        return dict(_hunar_health_cache[1])
+
+    if not settings.hunar_configured:
+        result: dict[str, Any] = {
+            "status": "not_configured",
+            "ok": False,
+            "reason": "HUNAR_API_KEY is not set. Add it to the backend environment.",
+        }
+    else:
+        ping = await get_hunar_client().ping()
+        result = {
+            **ping,
+            "status": "ok" if ping.get("ok") else "failing",
+        }
+    _hunar_health_cache = (now, result)
+    return dict(result)
 
 
 @router.get("/hunar/agents")
