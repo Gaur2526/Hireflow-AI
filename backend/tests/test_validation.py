@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from app.core.errors import ValidationFailure
 from app.schemas.campaign import RETRY_INTERVALS, CallDefaults, CampaignCreate
-from app.services.campaigns import create_campaign
+from app.services.campaigns import _resolve_candidates, create_campaign
 
 from tests.conftest import AGENTS_URL
 
@@ -323,6 +323,16 @@ async def test_a_prompt_using_only_known_variables_is_accepted(
 # ===========================================================================
 # Campaign preconditions
 # ===========================================================================
+def test_only_shortlisted_candidates_can_be_resolved_for_calls(db, factory) -> None:
+    from app.models import CandidateStatus
+
+    job = factory.job()
+    candidate = factory.candidate(job, status=CandidateStatus.SOURCED)
+
+    with pytest.raises(ValidationFailure, match="Only shortlisted candidates"):
+        _resolve_candidates(db, job, [candidate.id])
+
+
 async def test_a_job_with_no_screening_questions_cannot_launch(
     db, factory, respx_mock, hunar_key
 ) -> None:

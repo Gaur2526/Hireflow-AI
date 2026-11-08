@@ -94,7 +94,7 @@ def _minutes(value: str) -> int:
 
 class CampaignCreate(BaseModel):
     name: str | None = None
-    candidate_ids: list[str] = Field(default_factory=list)
+    candidate_ids: list[str] | None = None
     agent_config: AgentConfigInput = Field(default_factory=AgentConfigInput)
     call_defaults: CallDefaults = Field(default_factory=CallDefaults)
     #: Reuse an existing Hunar agent instead of creating a new one.

@@ -46,17 +46,18 @@ interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, signal } = options;
+  const { method = "GET", body, signal, headers } = options;
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE}/api${path}`, {
       method,
       signal,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
     });
@@ -119,7 +120,13 @@ export const getHealth = () =>
   }>("/meta/health");
 
 export const pingHunar = () =>
-  request<{ ok: boolean; agents_visible?: number; reason?: string; key?: string }>(
+  request<{
+    status: "ok" | "failing" | "not_configured" | "retired";
+    ok: boolean;
+    agents_visible?: number;
+    reason?: string;
+    key?: string;
+  }>(
     "/meta/hunar/ping",
   );
 
@@ -208,7 +215,10 @@ export const launchCampaign = (
     reuse_agent_id?: string | null;
     dry_run?: boolean;
   },
-) => request<LaunchResponse>(`/jobs/${jobId}/campaigns`, { method: "POST", body });
+  idempotencyKey: string,
+) => request<LaunchResponse>(`/jobs/${jobId}/campaigns`, {
+  method: "POST", body, headers: { "Idempotency-Key": idempotencyKey },
+});
 
 export const dispatchCampaign = (id: string) =>
   request<LaunchResponse>(`/campaigns/${id}/dispatch`, { method: "POST" });

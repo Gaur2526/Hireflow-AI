@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, PhoneOutgoing } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +55,8 @@ export function CampaignLauncher({
   const language = languageChoice ?? config?.defaults.language ?? "ENGLISH";
   const [dryRun, setDryRun] = useState(false);
   const [busy, setBusy] = useState(false);
+  const launchLock = useRef(false);
+  const launchKey = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [timezoneChoice, setTimezoneChoice] = useState<string | null>(null);
@@ -78,6 +80,8 @@ export function CampaignLauncher({
   }
 
   async function launch() {
+    if (launchLock.current) return;
+    launchLock.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -91,7 +95,7 @@ export function CampaignLauncher({
           persona_name: personaName || null,
         },
         call_defaults: { ...defaults, timezone },
-      });
+      }, launchKey.current ?? (launchKey.current = crypto.randomUUID()));
 
       if (response.dispatched) {
         toast.success(`${response.dispatched} call${response.dispatched === 1 ? "" : "s"} placed`, {
@@ -109,19 +113,32 @@ export function CampaignLauncher({
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
+      launchLock.current = false;
     }
   }
 
   const hunarReady = config?.hunar.configured ?? false;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        launchKey.current = nextOpen ? crypto.randomUUID() : null;
+      }}
+    >
       <DialogTrigger asChild>
         <Button disabled={!selectedIds.length}>
           <PhoneOutgoing className="size-4" />
           Screen {selectedIds.length || ""} by voice
         </Button>
       </DialogTrigger>
+
+      {!selectedIds.length ? (
+        <p className="ml-2 inline text-xs text-muted-foreground">
+          Shortlist and select at least one candidate to launch calls.
+        </p>
+      ) : null}
 
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -313,7 +330,7 @@ export function CampaignLauncher({
           ) : null}
           {config?.demo_call_redirect.enabled ? (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              Demo redirect is on — every call goes to {config.demo_call_redirect.number}.
+              Demo mode: calls redirected to {config.demo_call_redirect.number}.
             </p>
           ) : null}
           {error ? <ErrorNote message={error} /> : null}

@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import re
 import unicodedata
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session, get_campaign, get_job
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationFailure
 from app.models import Campaign, Candidate, CandidateStatus, Job
 from app.schemas.campaign import (
     CallWithCandidate,
@@ -33,10 +35,51 @@ router = APIRouter(tags=["campaigns"])
 @router.post("/jobs/{job_id}/campaigns", response_model=LaunchResponse, status_code=201)
 async def create_and_launch(
     payload: CampaignCreate,
+    response: Response,
     job: Job = Depends(get_job),
     db: Session = Depends(db_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> LaunchResponse:
-    campaign, skipped, warnings = await service.create_campaign(db, job, payload)
+    if payload.candidate_ids is not None and not payload.candidate_ids:
+        raise ValidationFailure(
+            "Select at least one shortlisted candidate before launching."
+        )
+    if idempotency_key:
+        existing = db.scalar(
+            select(Campaign).where(
+                Campaign.job_id == job.id,
+                Campaign.request_id == idempotency_key[:64],
+            )
+        )
+        if existing:
+            response.status_code = 200
+            return LaunchResponse(
+                campaign=CampaignRead.model_validate(existing),
+                dispatched=0,
+                skipped=[],
+                warnings=["Duplicate launch request; returning the existing campaign."],
+            )
+    try:
+        campaign, skipped, warnings = await service.create_campaign(
+            db, job, payload, idempotency_key=idempotency_key
+        )
+    except IntegrityError:
+        if not idempotency_key:
+            raise
+        db.rollback()
+        existing = db.get(
+            Campaign,
+            hashlib.sha256(f"{job.id}:{idempotency_key}".encode()).hexdigest()[:36],
+        )
+        if existing is None:
+            raise
+        response.status_code = 200
+        return LaunchResponse(
+            campaign=CampaignRead.model_validate(existing),
+            dispatched=0,
+            skipped=[],
+            warnings=["Duplicate launch request; returning the existing campaign."],
+        )
 
     dispatched = 0
     if payload.dry_run:
