@@ -450,7 +450,7 @@ def _describe(status: int, body: Any) -> str:
         detail = body[:400]
 
     base = {
-        401: "Hunar rejected the API key (401). Check HUNAR_API_KEY - the assignment key expires.",
+        401: "Hunar rejected the API key (401). Check HUNAR_API_KEY in the backend environment, replace it with an active key, then restart the backend.",
         402: "Hunar reports the subscription is expired or calling minutes are exhausted (402).",
         403: "Hunar denied this request (403).",
         404: "Hunar resource not found (404).",
